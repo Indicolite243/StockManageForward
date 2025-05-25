@@ -5,7 +5,7 @@
       <div class="main-content">
         <AssetDisplayModule />
       </div>
-      
+
       <!-- 右侧边栏 -->
       <div class="right-sidebar">
         <RightAside />
@@ -26,7 +26,7 @@ import RightAside from '@/components/layout/RightAside.vue'
   height: 100vh;
   background-color: var(--bg-color);
   color: var(--text-color);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .main-layout {
@@ -34,7 +34,7 @@ import RightAside from '@/components/layout/RightAside.vue'
   flex: 1;
   width: 100%;
   height: calc(100% - 60px); /* 减去可能的顶部导航高度 */
-  overflow: hidden;
+  overflow: auto;
 }
 
 .main-content {
@@ -49,4 +49,4 @@ import RightAside from '@/components/layout/RightAside.vue'
   background-color: var(--panel-bg);
   overflow-y: auto;
 }
-</style> 
+</style>

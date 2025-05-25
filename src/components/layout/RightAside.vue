@@ -47,11 +47,10 @@ export default {
   data() {
     return {
       riskThresholdData: [
-        { metric: '总资金', value: '10000' },
-        { metric: '止损点', value: '5%' },
-        { metric: '长期波动率', value: '10%' },
-        { metric: '最大回测', value: '15%' },
-        { metric: '股票仓位', value: '60%' },
+        { metric: '最大本金损失', value: '5%' },
+        { metric: '波动率', value: '12%' },
+        { metric: '最大回测幅度', value: '8%' },
+        { metric: 'VaR值', value: '3.2%' }
       ],
     };
   },

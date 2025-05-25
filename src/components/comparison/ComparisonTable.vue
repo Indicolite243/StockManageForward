@@ -13,20 +13,20 @@
         </el-button>
       </div>
     </div>
-    
+
     <div class="table-content">
-      <el-table 
-        :data="tableData" 
-        style="width: 100%" 
+      <el-table
+        :data="tableData"
+        style="width: 100%"
         height="100%"
         :header-cell-style="headerCellStyle"
         :cell-style="cellStyle"
         stripe
       >
-        <el-table-column 
-          v-for="column in tableColumns" 
+        <el-table-column
+          v-for="column in tableColumns"
           :key="column.prop"
-          :prop="column.prop" 
+          :prop="column.prop"
           :label="column.label"
           :width="column.width"
           :formatter="column.formatter"
@@ -72,7 +72,7 @@ export default {
           return this.getAssetData();
       }
     },
-    
+
     tableColumns() {
       switch (this.tableType) {
         case 'asset':
@@ -82,7 +82,7 @@ export default {
             { prop: 'volatility', label: '波动率', width: '80', formatter: this.formatPercent },
             { prop: 'sharpe', label: '夏普比率', width: '90' },
             { prop: 'trend', label: '趋势', width: '80' },
-            { prop: 'risk', label: '风险等级', width: '90' }
+            { prop: 'risk', label: '历史分位', width: '90' }
           ];
         case 'time':
           return [
@@ -107,7 +107,7 @@ export default {
       }
     }
   },
-  
+
   methods: {
     getTableTitle() {
       const titleMap = {
@@ -117,7 +117,7 @@ export default {
       };
       return titleMap[this.tableType] || '对比数据';
     },
-    
+
     getAssetData() {
       return [
         {
@@ -125,44 +125,44 @@ export default {
           return: 12.5,
           volatility: 15.2,
           sharpe: 1.85,
-          trend: '上升',
-          risk: '低'
+          trend: '牛式',
+          risk: '90%'
         },
         {
           name: '股票B',
           return: 8.3,
           volatility: 18.7,
           sharpe: 1.42,
-          trend: '稳定',
-          risk: '中'
+          trend: '震荡',
+          risk: '70%'
         },
         {
           name: '基金C',
           return: 15.8,
           volatility: 12.4,
           sharpe: 2.12,
-          trend: '上升',
-          risk: '低'
+          trend: '牛式',
+          risk: '30%'
         },
         {
           name: '债券D',
           return: 4.2,
           volatility: 3.8,
           sharpe: 1.08,
-          trend: '稳定',
-          risk: '低'
+          trend: '震荡',
+          risk: '10%'
         },
         {
           name: '期货E',
           return: -2.1,
           volatility: 25.6,
           sharpe: -0.15,
-          trend: '下降',
-          risk: '高'
+          trend: '熊式',
+          risk: '5%'
         }
       ];
     },
-    
+
     getTimeData() {
       return [
         {
@@ -207,7 +207,7 @@ export default {
         }
       ];
     },
-    
+
     getRegionData() {
       return [
         {
@@ -244,20 +244,20 @@ export default {
         }
       ];
     },
-    
+
     formatPercent(row, column, cellValue) {
       return `${cellValue}%`;
     },
-    
+
     getTrendClass(trend) {
       const trendMap = {
-        '上升': 'trend-up',
-        '下降': 'trend-down',
-        '稳定': 'trend-stable'
+        '牛式': 'trend-up',
+        '熊式': 'trend-down',
+        '震荡': 'trend-stable'
       };
       return trendMap[trend] || 'trend-stable';
     },
-    
+
     getRiskTagType(risk) {
       const riskMap = {
         '低': 'success',
@@ -266,7 +266,7 @@ export default {
       };
       return riskMap[risk] || 'info';
     },
-    
+
     headerCellStyle() {
       return {
         backgroundColor: 'rgba(64, 224, 255, 0.2)',
@@ -276,7 +276,7 @@ export default {
         padding: '8px'
       };
     },
-    
+
     cellStyle() {
       return {
         backgroundColor: 'transparent',
@@ -285,12 +285,12 @@ export default {
         padding: '6px'
       };
     },
-    
+
     exportData() {
       console.log('导出数据:', this.tableData);
       // 这里可以实现实际的导出功能
     },
-    
+
     refreshData() {
       console.log('刷新数据');
       // 这里可以实现数据刷新功能
@@ -463,4 +463,4 @@ export default {
   background: rgba(255, 107, 107, 0.2) !important;
   color: #ff6b6b !important;
 }
-</style> 
+</style>

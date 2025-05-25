@@ -42,7 +42,7 @@
           />
           <el-table-column
             prop="frozen_cash"
-            label="冻结金额"
+            label="股票/期货持仓市值"
             min-width="120"
             align="right"
           />
@@ -54,7 +54,7 @@
           />
           <el-table-column
             prop="total_positions"
-            label="持仓数量"
+            label="持仓股数"
             min-width="120"
             align="right"
           />

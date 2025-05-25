@@ -2,7 +2,7 @@
   <div class="comparison-page">
     <!-- 网格背景装饰 -->
     <div class="grid-background"></div>
-    
+
     <!-- 主要内容区域 -->
     <div class="content-wrapper">
       <!-- 左侧导航栏 -->
@@ -11,9 +11,9 @@
           <div class="header-line"></div>
           <h3 class="sidebar-title">对比评估</h3>
         </div>
-        
+
         <div class="sidebar-menu">
-          <div 
+          <div
             class="menu-item"
             :class="{ active: activeMenu === 'asset' }"
             @click="setActiveMenu('asset')"
@@ -21,8 +21,8 @@
             <div class="menu-icon asset-icon"></div>
             <span>资产对比</span>
           </div>
-          
-          <div 
+
+          <div
             class="menu-item"
             :class="{ active: activeMenu === 'time' }"
             @click="setActiveMenu('time')"
@@ -30,14 +30,14 @@
             <div class="menu-icon time-icon"></div>
             <span>时间段对</span>
           </div>
-          
-          <div 
+
+          <div
             class="menu-item"
             :class="{ active: activeMenu === 'region' }"
             @click="setActiveMenu('region')"
           >
             <div class="menu-icon region-icon"></div>
-            <span>地区对比</span>
+            <span>分市场对比</span>
           </div>
         </div>
       </div>
@@ -139,21 +139,21 @@ export default {
     return {
       activeMenu: 'asset',
       riskThresholdData: [
-        { metric: '最大损失', value: '5%', status: 'normal' },
+        { metric: '最大本金损失', value: '5%', status: 'normal' },
         { metric: '波动率', value: '12%', status: 'warning' },
-        { metric: '回撤幅度', value: '8%', status: 'normal' },
+        { metric: '最大回测幅度', value: '8%', status: 'normal' },
         { metric: 'VaR值', value: '3.2%', status: 'normal' }
       ],
       riskWarnings: [
-        { 
-          level: 'low', 
-          message: '市场波动率略高', 
+        {
+          level: 'low',
+          message: '市场波动率略高',
           time: '2025-01-25 14:30',
           action: '建议适当降低仓位'
         },
-        { 
-          level: 'normal', 
-          message: '系统运行正常', 
+        {
+          level: 'normal',
+          message: '系统运行正常',
           time: '2025-01-25 12:00',
           action: '继续监控'
         }
@@ -181,7 +181,7 @@ export default {
   height: calc(100vh - 120px);
   padding: 20px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: auto;
   z-index: 2;
 }
 
@@ -192,7 +192,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     linear-gradient(rgba(64, 224, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(64, 224, 255, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -222,7 +222,7 @@ export default {
   backdrop-filter: blur(20px);
   border: 1px solid rgba(64, 224, 255, 0.3);
   border-radius: 12px;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     0 0 40px rgba(64, 224, 255, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -233,7 +233,7 @@ export default {
 
 .glass-panel:hover {
   border-color: rgba(64, 224, 255, 0.6);
-  box-shadow: 
+  box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.4),
     0 0 60px rgba(64, 224, 255, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -242,13 +242,13 @@ export default {
 
 @keyframes panelGlow {
   0% {
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       0 0 40px rgba(64, 224, 255, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
   100% {
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       0 0 60px rgba(64, 224, 255, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -265,8 +265,8 @@ export default {
 
 .sidebar-header {
   padding: 15px;
-  background: linear-gradient(135deg, 
-    rgba(64, 224, 255, 0.1) 0%, 
+  background: linear-gradient(135deg,
+    rgba(64, 224, 255, 0.1) 0%,
     rgba(30, 144, 255, 0.05) 100%);
   border-bottom: 1px solid rgba(64, 224, 255, 0.2);
   display: flex;
@@ -371,8 +371,8 @@ export default {
 /* 面板头部 */
 .panel-header {
   padding: 12px 15px;
-  background: linear-gradient(135deg, 
-    rgba(64, 224, 255, 0.1) 0%, 
+  background: linear-gradient(135deg,
+    rgba(64, 224, 255, 0.1) 0%,
     rgba(30, 144, 255, 0.05) 100%);
   border-bottom: 1px solid rgba(64, 224, 255, 0.2);
   display: flex;
@@ -427,7 +427,7 @@ export default {
   height: 8px;
   border-radius: 50%;
   background: #00ff88;
-  box-shadow: 
+  box-shadow:
     0 0 8px #00ff88,
     0 0 16px rgba(0, 255, 136, 0.5);
   animation: statusBlink 2s ease-in-out infinite;
@@ -500,12 +500,12 @@ export default {
     width: 160px;
     min-width: 160px;
   }
-  
+
   .content-row {
     flex-direction: column;
     gap: 15px;
   }
-  
+
   .content-panel {
     min-height: 250px;
   }
@@ -515,23 +515,23 @@ export default {
   .comparison-page {
     padding: 10px;
   }
-  
+
   .content-wrapper {
     flex-direction: column;
     gap: 15px;
   }
-  
+
   .left-sidebar {
     width: 100%;
     height: auto;
     flex-direction: row;
   }
-  
+
   .sidebar-menu {
     flex-direction: row;
     padding: 10px;
   }
-  
+
   .main-content {
     gap: 10px;
   }
