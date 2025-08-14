@@ -57,7 +57,7 @@ export default {
           strategies.value = [
             {
               id: 1,
-              name: '量化价值策略',
+              name: '量化选股策略',
               description: '基于PE、PB等基本面指标的价值投资策略，专注于寻找被低估的优质股票',
               parameters: [
                 { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
@@ -68,7 +68,7 @@ export default {
             },
             {
               id: 2,
-              name: '动量交易策略',
+              name: 'ETF策略',
               description: '基于价格和成交量的技术分析策略，捕捉市场短期趋势',
               parameters: [
                 { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
@@ -79,7 +79,7 @@ export default {
             },
             {
               id: 3,
-              name: '均值回归策略',
+              name: '灵活对冲策略',
               description: '基于股价偏离均值的统计套利策略，适合震荡市场',
               parameters: [
                 { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
@@ -98,7 +98,7 @@ export default {
         strategies.value = [
           {
             id: 1,
-            name: '量化价值策略',
+            name: '量化选股策略',
             description: '基于股票数量、选股范围、最大仓位、个股仓位等基本面指标的价值投资策略，专注于寻找被低估的优质股票',
             parameters: [
               { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
@@ -109,7 +109,7 @@ export default {
           },
           {
             id: 2,
-            name: '动量交易策略',
+            name: 'ETF策略',
             description: '基于价格和成交量的技术分析策略，捕捉市场短期趋势',
             parameters: [
               { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
@@ -120,7 +120,7 @@ export default {
           },
           {
             id: 3,
-            name: '均值回归策略',
+            name: '灵活对冲策略',
             description: '基于股价偏离均值的统计套利策略，适合震荡市场',
             parameters: [
               { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
