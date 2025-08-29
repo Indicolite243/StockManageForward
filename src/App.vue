@@ -1,27 +1,37 @@
 <template>
   <div class="app">
-    <MenuBar />
+    <!-- 只在非登录页面显示菜单栏 -->
+    <MenuBar v-if="showMenuBar" />
     <router-view />
     <!-- 模拟数据状态指示器 -->
-    <MockDataIndicator />
+    <MockDataIndicator v-if="showMenuBar" />
     <!-- 动态背景粒子效果 -->
     <div class="background-particles">
-      <div v-for="n in 50" :key="n" class="particle" :style="getParticleStyle(n)"></div>
+      <div v-for="n in 50" :key="n" class="particle" :style="getParticleStyle()"></div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import MenuBar from '@/components/layout/MenuBar.vue';
 import MockDataIndicator from '@/components/layout/MockDataIndicator.vue';
 
+const route = useRoute()
+
+// 判断是否显示菜单栏
+const showMenuBar = computed(() => {
+  return route.path !== '/login'
+})
+
 // 生成随机粒子样式
-const getParticleStyle = (index) => {
+const getParticleStyle = () => {
   const size = Math.random() * 3 + 1;
   const animationDuration = Math.random() * 20 + 10;
   const left = Math.random() * 100;
   const animationDelay = Math.random() * 20;
-  
+
   return {
     width: `${size}px`,
     height: `${size}px`,
@@ -41,19 +51,19 @@ const getParticleStyle = (index) => {
 
 body {
   font-family: 'Microsoft YaHei', 'Arial', sans-serif;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .app {
   min-height: 100vh;
   position: relative;
-  background: linear-gradient(135deg, 
-    #0c1426 0%, 
-    #1a1f3a 25%, 
-    #16213e 50%, 
-    #0f1419 75%, 
+  background: linear-gradient(135deg,
+    #0c1426 0%,
+    #1a1f3a 25%,
+    #16213e 50%,
+    #0f1419 75%,
     #000814 100%);
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* 动态背景粒子效果 */
@@ -121,7 +131,7 @@ body {
 /* 全局发光边框效果 */
 .border-glow {
   border: 1px solid rgba(64, 224, 255, 0.3);
-  box-shadow: 
+  box-shadow:
     0 0 10px rgba(64, 224, 255, 0.2),
     inset 0 0 10px rgba(64, 224, 255, 0.1);
 }

@@ -13,24 +13,25 @@
         </el-button>
       </div>
     </div>
-    
-    <div class="table-content">
-      <el-table 
-        :data="tableData" 
-        style="width: 100%" 
-        height="100%"
-        :header-cell-style="headerCellStyle"
-        :cell-style="cellStyle"
-        stripe
-      >
-        <el-table-column 
-          v-for="column in tableColumns" 
-          :key="column.prop"
-          :prop="column.prop" 
-          :label="column.label"
-          :width="column.width"
-          :formatter="column.formatter"
-        >
+
+         <div class="table-content">
+       <el-table
+         :data="tableData"
+         style="width: 100%"
+         height="100%"
+         :header-cell-style="headerCellStyle"
+         :cell-style="cellStyle"
+         stripe
+         fit
+       >
+                 <el-table-column
+           v-for="column in tableColumns"
+           :key="column.prop"
+           :prop="column.prop"
+           :label="column.label"
+           :min-width="column.minWidth"
+           :formatter="column.formatter"
+         >
           <template #default="{ row, column: col }" v-if="column.prop === 'trend'">
             <div class="trend-cell">
               <div class="trend-indicator" :class="getTrendClass(row[col.property])"></div>
@@ -72,52 +73,52 @@ export default {
           return this.getAssetData();
       }
     },
-    
+
     tableColumns() {
       switch (this.tableType) {
         case 'asset':
           return [
-            { prop: 'name', label: '资产名称', width: '120' },
-            { prop: 'return', label: '收益率', width: '80', formatter: this.formatPercent },
-            { prop: 'volatility', label: '波动率', width: '80', formatter: this.formatPercent },
-            { prop: 'sharpe', label: '夏普比率', width: '90' },
-            { prop: 'trend', label: '趋势', width: '80' },
-            { prop: 'risk', label: '风险等级', width: '90' }
+            { prop: 'name', label: '资产名称', minWidth: '120' },
+            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'volatility', label: '波动率', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'sharpe', label: '夏普比率', minWidth: '120' },
+            { prop: 'trend', label: '趋势', minWidth: '100' },
+            { prop: 'risk', label: '历史分位', minWidth: '120' }
           ];
         case 'time':
           return [
-            { prop: 'period', label: '时间段', width: '100' },
-            { prop: 'return', label: '收益率', width: '80', formatter: this.formatPercent },
-            { prop: 'maxDrawdown', label: '最大回撤', width: '90', formatter: this.formatPercent },
-            { prop: 'winRate', label: '胜率', width: '70', formatter: this.formatPercent },
-            { prop: 'trades', label: '交易次数', width: '80' },
-            { prop: 'risk', label: '风险等级', width: '90' }
+            { prop: 'period', label: '时间段', minWidth: '120' },
+            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'maxDrawdown', label: '最大回撤', minWidth: '120', formatter: this.formatPercent },
+            { prop: 'winRate', label: '胜率', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'trades', label: '交易次数', minWidth: '120' },
+            { prop: 'risk', label: '风险等级', minWidth: '120' }
           ];
         case 'region':
           return [
-            { prop: 'region', label: '地区', width: '100' },
-            { prop: 'allocation', label: '配置比例', width: '90', formatter: this.formatPercent },
-            { prop: 'return', label: '收益率', width: '80', formatter: this.formatPercent },
-            { prop: 'correlation', label: '相关性', width: '80' },
-            { prop: 'trend', label: '趋势', width: '80' },
-            { prop: 'risk', label: '风险等级', width: '90' }
+            { prop: 'region', label: '地区', minWidth: '120' },
+            { prop: 'allocation', label: '配置比例', minWidth: '120', formatter: this.formatPercent },
+            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'correlation', label: '相关性', minWidth: '120' },
+            { prop: 'trend', label: '趋势', minWidth: '100' },
+            { prop: 'risk', label: '风险等级', minWidth: '120' }
           ];
         default:
           return [];
       }
     }
   },
-  
+
   methods: {
     getTableTitle() {
       const titleMap = {
         asset: '资产对比数据',
         time: '时间段对比数据',
-        region: '地区对比数据'
+        region: '分市场对比数据'
       };
       return titleMap[this.tableType] || '对比数据';
     },
-    
+
     getAssetData() {
       return [
         {
@@ -125,44 +126,44 @@ export default {
           return: 12.5,
           volatility: 15.2,
           sharpe: 1.85,
-          trend: '上升',
-          risk: '低'
+          trend: '牛式',
+          risk: '90%'
         },
         {
           name: '股票B',
           return: 8.3,
           volatility: 18.7,
           sharpe: 1.42,
-          trend: '稳定',
-          risk: '中'
+          trend: '震荡',
+          risk: '70%'
         },
         {
           name: '基金C',
           return: 15.8,
           volatility: 12.4,
           sharpe: 2.12,
-          trend: '上升',
-          risk: '低'
+          trend: '牛式',
+          risk: '30%'
         },
         {
           name: '债券D',
           return: 4.2,
           volatility: 3.8,
           sharpe: 1.08,
-          trend: '稳定',
-          risk: '低'
+          trend: '震荡',
+          risk: '10%'
         },
         {
           name: '期货E',
           return: -2.1,
           volatility: 25.6,
           sharpe: -0.15,
-          trend: '下降',
-          risk: '高'
+          trend: '熊式',
+          risk: '5%'
         }
       ];
     },
-    
+
     getTimeData() {
       return [
         {
@@ -207,7 +208,7 @@ export default {
         }
       ];
     },
-    
+
     getRegionData() {
       return [
         {
@@ -215,7 +216,7 @@ export default {
           allocation: 45.0,
           return: 12.8,
           correlation: 0.85,
-          trend: '上升',
+          trend: '牛式',
           risk: '中'
         },
         {
@@ -223,7 +224,7 @@ export default {
           allocation: 25.0,
           return: 8.5,
           correlation: 0.72,
-          trend: '稳定',
+          trend: '震荡',
           risk: '中'
         },
         {
@@ -231,7 +232,7 @@ export default {
           allocation: 20.0,
           return: 15.2,
           correlation: 0.45,
-          trend: '上升',
+          trend: '牛式',
           risk: '中'
         },
         {
@@ -239,25 +240,25 @@ export default {
           allocation: 10.0,
           return: 6.3,
           correlation: 0.68,
-          trend: '稳定',
+          trend: '震荡',
           risk: '低'
         }
       ];
     },
-    
+
     formatPercent(row, column, cellValue) {
       return `${cellValue}%`;
     },
-    
+
     getTrendClass(trend) {
       const trendMap = {
-        '上升': 'trend-up',
-        '下降': 'trend-down',
-        '稳定': 'trend-stable'
+        '牛式': 'trend-up',
+        '熊式': 'trend-down',
+        '震荡': 'trend-stable'
       };
       return trendMap[trend] || 'trend-stable';
     },
-    
+
     getRiskTagType(risk) {
       const riskMap = {
         '低': 'success',
@@ -266,7 +267,7 @@ export default {
       };
       return riskMap[risk] || 'info';
     },
-    
+
     headerCellStyle() {
       return {
         backgroundColor: 'rgba(64, 224, 255, 0.2)',
@@ -276,7 +277,7 @@ export default {
         padding: '8px'
       };
     },
-    
+
     cellStyle() {
       return {
         backgroundColor: 'transparent',
@@ -285,12 +286,12 @@ export default {
         padding: '6px'
       };
     },
-    
+
     exportData() {
       console.log('导出数据:', this.tableData);
       // 这里可以实现实际的导出功能
     },
-    
+
     refreshData() {
       console.log('刷新数据');
       // 这里可以实现数据刷新功能
@@ -396,6 +397,15 @@ export default {
   border: 1px solid rgba(64, 224, 255, 0.2) !important;
   border-radius: 8px !important;
   overflow: hidden;
+  width: 100% !important;
+}
+
+:deep(.el-table__body-wrapper) {
+  width: 100% !important;
+}
+
+:deep(.el-table__header-wrapper) {
+  width: 100% !important;
 }
 
 :deep(.el-table th.el-table__cell) {
@@ -463,4 +473,4 @@ export default {
   background: rgba(255, 107, 107, 0.2) !important;
   color: #ff6b6b !important;
 }
-</style> 
+</style>

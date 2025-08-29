@@ -52,39 +52,40 @@ export default {
             selectedStrategy.value.parameters = [];
           }
         } else {
-          console.warn('获取到的策略数据格式不正确或为空');
+          console.warn('获取到的策略数据格式不正确或为空，使用默认策略数据');
+          // 使用完整的默认策略数据
           strategies.value = [
             {
               id: 1,
-              name: '量化价值策略',
+              name: '量化选股策略',
               description: '基于PE、PB等基本面指标的价值投资策略，专注于寻找被低估的优质股票',
               parameters: [
-                { paramKey: 'PE', paramValue: '20', description: '市盈率上限' },
-                { paramKey: 'PB', paramValue: '2.5', description: '市净率上限' },
-                { paramKey: 'ROE', paramValue: '15%', description: '净资产收益率下限' },
-                { paramKey: '仓位', paramValue: '80%', description: '最大仓位比例' }
+                { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+                { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+                { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+                { paramKey: '个股仓位', paramValue: '10%', description: '单只股票最大持仓比例' }
               ]
             },
             {
               id: 2,
-              name: '动量交易策略',
+              name: 'ETF策略',
               description: '基于价格和成交量的技术分析策略，捕捉市场短期趋势',
               parameters: [
-                { paramKey: 'MA5', paramValue: '激活', description: '5日均线策略' },
-                { paramKey: 'MA20', paramValue: '激活', description: '20日均线策略' },
-                { paramKey: 'VOL', paramValue: '150%', description: '成交量放大倍数' },
-                { paramKey: '止损', paramValue: '5%', description: '止损比例' }
+                { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+                { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+                { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+                { paramKey: '个股仓位', paramValue: '10%', description: '单只股票最大持仓比例' }
               ]
             },
             {
               id: 3,
-              name: '均值回归策略',
+              name: '灵活对冲策略',
               description: '基于股价偏离均值的统计套利策略，适合震荡市场',
               parameters: [
-                { paramKey: 'BOLL', paramValue: '2.0', description: '布林带标准差' },
-                { paramKey: 'RSI', paramValue: '30-70', description: 'RSI指标区间' },
-                { paramKey: '回归期', paramValue: '20天', description: '均值回归周期' },
-                { paramKey: '仓位', paramValue: '60%', description: '最大仓位比例' }
+                { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+                { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+                { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+                { paramKey: '个股仓位', paramValue: '10%', description: '单只股票最大持仓比例' }
               ]
             }
           ];
@@ -92,14 +93,40 @@ export default {
         }
       } catch (error) {
         console.error('获取策略列表失败：', error);
+        console.log('使用默认策略数据');
+        // 使用完整的默认策略数据，而不是只有一个策略
         strategies.value = [
           {
             id: 1,
-            name: '量化价值策略',
-            description: '基于PE、PB等基本面指标的价值投资策略',
+            name: '量化选股策略',
+            description: '基于股票数量、选股范围、最大仓位、个股仓位等基本面指标的价值投资策略，专注于寻找被低估的优质股票',
             parameters: [
-              { paramKey: 'PE', paramValue: '20', description: '市盈率上限' },
-              { paramKey: 'PB', paramValue: '2.5', description: '市净率上限' }
+              { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+              { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+              { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+              { paramKey: '个股仓位', paramValue: '10%', description: '单只股票最大持仓比例' }
+            ]
+          },
+          {
+            id: 2,
+            name: 'ETF策略',
+            description: '基于价格和成交量的技术分析策略，捕捉市场短期趋势',
+            parameters: [
+              { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+              { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+              { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+              { paramKey: '个股仓位', paramValue: '20%', description: '单只股票最大持仓比例' }
+            ]
+          },
+          {
+            id: 3,
+            name: '灵活对冲策略',
+            description: '基于股价偏离均值的统计套利策略，适合震荡市场',
+            parameters: [
+              { paramKey: '股票数量', paramValue: '10', description: '最终持有的股票数量' },
+              { paramKey: '选股范围', paramValue: '沪深A股', description: '可选股票的市场范围' },
+              { paramKey: '最大仓位', paramValue: '80%', description: '全部股票的总持仓上限' },
+              { paramKey: '个股仓位', paramValue: '30%', description: '单只股票最大持仓比例' }
             ]
           }
         ];
@@ -111,6 +138,10 @@ export default {
 
     const handleStrategyChange = () => {
       console.log('当前选中策略：', selectedStrategy.value);
+      // 确保选中的策略有完整的参数信息
+      if (selectedStrategy.value && !selectedStrategy.value.parameters) {
+        selectedStrategy.value.parameters = [];
+      }
     };
 
     return {
@@ -130,7 +161,7 @@ export default {
   flex-direction: column;
   padding: 6px;
   box-sizing: border-box;
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 
 .strategy-display-module {
@@ -143,10 +174,10 @@ export default {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
-  box-shadow: 
+  box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.2),
     0 0 20px rgba(64, 224, 255, 0.1);
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 
 .title {

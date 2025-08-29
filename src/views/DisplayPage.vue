@@ -2,7 +2,7 @@
   <div class="display-page">
     <!-- 网格背景装饰 -->
     <div class="grid-background"></div>
-    
+
     <!-- 主要内容区域 -->
     <div class="content-wrapper">
       <!-- 左侧资产展示模块 -->
@@ -91,10 +91,10 @@ export default {
 .display-page {
   position: relative;
   width: 100%;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 140px); /* 增加减去的高度，为MenuBar留出更多空间 */
   padding: 20px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: auto;
   z-index: 2;
 }
 
@@ -105,7 +105,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     linear-gradient(rgba(64, 224, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(64, 224, 255, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -135,7 +135,7 @@ export default {
   backdrop-filter: blur(20px);
   border: 1px solid rgba(64, 224, 255, 0.3);
   border-radius: 12px;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
     0 0 40px rgba(64, 224, 255, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -148,7 +148,7 @@ export default {
 
 .glass-panel:hover {
   border-color: rgba(64, 224, 255, 0.6);
-  box-shadow: 
+  box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.4),
     0 0 60px rgba(64, 224, 255, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -157,13 +157,13 @@ export default {
 
 @keyframes panelGlow {
   0% {
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       0 0 40px rgba(64, 224, 255, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
   100% {
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       0 0 60px rgba(64, 224, 255, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -174,6 +174,7 @@ export default {
 .left-section {
   width: 38%;
   min-width: 380px;
+  overflow: auto;
 }
 
 .right-section {
@@ -185,13 +186,14 @@ export default {
 }
 
 .strategy-intro-panel {
-  height: 42%;
-  min-height: 320px;
+  height: 40%; /* 稍微减少策略简介的高度 */
+  min-height: 300px;
+  overflow: auto;
 }
 
 .strategy-result-panel {
-  height: 58%;
-  min-height: 480px;
+  height: 60%; /* 增加策略结果图的高度 */
+  min-height: 500px;
 }
 
 /* 响应式设计 */
@@ -200,26 +202,26 @@ export default {
     flex-direction: column;
     gap: 15px;
   }
-  
+
   .left-section {
     width: 100%;
     min-width: auto;
     height: 400px;
   }
-  
+
   .right-section {
     width: 100%;
     min-width: auto;
     flex-direction: row;
     height: 450px;
   }
-  
+
   .strategy-intro-panel {
     width: 50%;
     height: 100%;
     min-height: 400px;
   }
-  
+
   .strategy-result-panel {
     width: 50%;
     height: 100%;
@@ -231,16 +233,16 @@ export default {
   .display-page {
     padding: 10px;
   }
-  
+
   .content-wrapper {
     gap: 10px;
   }
-  
+
   .right-section {
     flex-direction: column;
     height: auto;
   }
-  
+
   .strategy-intro-panel,
   .strategy-result-panel {
     width: 100%;
@@ -253,8 +255,8 @@ export default {
 .panel-header {
   position: relative;
   padding: 15px 20px;
-  background: linear-gradient(135deg, 
-    rgba(64, 224, 255, 0.1) 0%, 
+  background: linear-gradient(135deg,
+    rgba(64, 224, 255, 0.1) 0%,
     rgba(30, 144, 255, 0.05) 100%);
   border-bottom: 1px solid rgba(64, 224, 255, 0.2);
   display: flex;
@@ -301,7 +303,7 @@ export default {
   height: 10px;
   border-radius: 50%;
   background: #00ff88;
-  box-shadow: 
+  box-shadow:
     0 0 10px #00ff88,
     0 0 20px rgba(0, 255, 136, 0.5);
   animation: statusBlink 2s ease-in-out infinite;
@@ -316,16 +318,16 @@ export default {
 .panel-content {
   flex: 1;
   padding: 20px;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
 }
 
 /* 面板底部 */
 .panel-footer {
   height: 3px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(64, 224, 255, 0.6) 50%, 
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(64, 224, 255, 0.6) 50%,
     transparent 100%);
   position: relative;
 }
@@ -336,17 +338,17 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(64, 224, 255, 0.8) 50%, 
-    transparent 100%);
-  animation: footerFlow 3s ease-in-out infinite;
+  /* background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(64, 224, 255, 0.8) 50%,
+    transparent 100%); */
+  /* animation: footerFlow 3s ease-in-out infinite; */
 }
 
-@keyframes footerFlow {
+/* @keyframes footerFlow {
   0%, 100% { transform: translateX(-100%); }
   50% { transform: translateX(100%); }
-}
+} */
 
 /* 浮动装饰元素 */
 .floating-decorations {
@@ -490,4 +492,4 @@ export default {
   border-radius: 8px !important;
   box-shadow: 0 0 20px rgba(64, 224, 255, 0.1) !important;
 }
-</style> 
+</style>

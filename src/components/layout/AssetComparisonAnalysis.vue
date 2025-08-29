@@ -59,7 +59,7 @@
 
     <!-- 地区对比分析 -->
     <div class="analysis-module">
-      <h5 class="module-title">地区对比分析</h5>
+      <h5 class="module-title">分市场对比分析</h5>
       <div class="module-content">
         <button class="module-button" @click="toggleRegionChart">点击查看图表</button>
         <div class="analysis-chart" v-if="isRegionChartVisible">
@@ -98,84 +98,7 @@ export default {
     // 资产类别数据
     const categoryData = ref([]);
 
-    // 获取资产类别数据的方法
-    const fetchCategoryData = async () => {
-      isLoading.value = true;
-      hasError.value = false;
-      errorMessage.value = '';
 
-      try {
-        console.log('开始获取数据...');
-        const response = await fetch('/api/asset_comparison/', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('服务器响应错误:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorText: errorText
-          });
-
-          if (response.status === 500) {
-            // 如果是500错误，等待1秒后重试
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return fetchCategoryData();
-          } else {
-            throw new Error(`请求失败: ${response.status} ${response.statusText}`);
-          }
-        }
-
-        const data = await response.json();
-        console.log('API返回的原始数据:', data);
-
-        // 检查数据结构
-        if (!data || !data.accounts || !Array.isArray(data.accounts) || data.accounts.length === 0) {
-          throw new Error('返回的数据格式不正确');
-        }
-
-        const account = data.accounts[0];
-        if (!account.positions || !Array.isArray(account.positions) || account.positions.length === 0) {
-          throw new Error('未找到持仓数据');
-        }
-
-        // 处理数据
-        categoryData.value = account.positions.map(item => ({
-          stock_code: item.stock_code,
-          asset_ratio: (item.asset_ratio * 100).toFixed(2) + '%',
-          market_value: Number(item.market_value),
-          daily_return: Number(item.daily_return).toFixed(2) + '%'
-        }));
-
-        console.log('处理后的数据:', categoryData.value);
-
-        // 如果图表可见，重新初始化图表
-        if (isCategoryChartVisible.value) {
-          nextTick(() => {
-            initCategoryChart();
-          });
-        }
-
-      } catch (error) {
-        console.error('获取数据时发生错误:', error);
-        hasError.value = true;
-        errorMessage.value = error.message || '获取数据时发生错误';
-
-        // 如果是网络错误，3秒后重试
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-          setTimeout(() => {
-            fetchCategoryData();
-          }, 3000);
-        }
-      } finally {
-        isLoading.value = false;
-      }
-    };
 
     // 在组件挂载时获取数据
     onMounted(() => {
@@ -265,7 +188,7 @@ export default {
             type: 'value',
             name: '资产占比',
             position: 'left',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value}%',
               color: '#ffffff'
             },
@@ -287,7 +210,7 @@ export default {
             type: 'value',
             name: '股票市值',
             position: 'right',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value} 元',
               color: '#ffffff'
             },
@@ -305,7 +228,7 @@ export default {
             name: '收益率',
             position: 'right',
             offset: 80,
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value}%',
               color: '#ffffff'
             },
@@ -396,7 +319,7 @@ export default {
             type: 'value',
             name: '总资产',
             position: 'left',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value} 元',
               color: '#ffffff'
             },
@@ -418,7 +341,7 @@ export default {
             type: 'value',
             name: '收益率',
             position: 'right',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value}%',
               color: '#ffffff'
             },
@@ -506,7 +429,7 @@ export default {
             type: 'value',
             name: '总资产',
             position: 'left',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value} 元',
               color: '#ffffff'
             },
@@ -528,7 +451,7 @@ export default {
             type: 'value',
             name: '收益率',
             position: 'right',
-            axisLabel: { 
+            axisLabel: {
               formatter: '{value}%',
               color: '#ffffff'
             },
@@ -629,7 +552,7 @@ export default {
       if (value === undefined || value === null) return '¥0.00';
       const num = Number(value);
       if (isNaN(num)) return '¥0.00';
-      
+
       return '¥' + num.toLocaleString('zh-CN', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
@@ -665,7 +588,7 @@ export default {
   border: 1px solid rgba(64, 224, 255, 0.2);
   border-radius: 8px;
   padding: 15px;
-  box-shadow: 
+  box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.2),
     0 0 20px rgba(64, 224, 255, 0.1);
   margin-bottom: 20px;
@@ -803,9 +726,9 @@ export default {
 }
 
 :deep(.el-skeleton.is-animated .el-skeleton__item) {
-  background: linear-gradient(90deg, 
-    rgba(64, 224, 255, 0.1) 25%, 
-    rgba(64, 224, 255, 0.3) 37%, 
+  background: linear-gradient(90deg,
+    rgba(64, 224, 255, 0.1) 25%,
+    rgba(64, 224, 255, 0.3) 37%,
     rgba(64, 224, 255, 0.1) 63%) !important;
 }
 </style>

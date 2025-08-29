@@ -2,8 +2,8 @@
   <div class="risk-threshold">
     <div class="threshold-content">
       <div class="metrics-grid">
-        <div 
-          v-for="(item, index) in data" 
+        <div
+          v-for="(item, index) in data"
           :key="index"
           class="metric-card"
           :class="item.status"
@@ -22,14 +22,10 @@
           </div>
         </div>
       </div>
-      
+
       <div class="threshold-summary">
         <div class="summary-title">风险总览</div>
         <div class="summary-grid">
-          <div class="summary-item normal">
-            <div class="summary-count">{{ getNormalCount() }}</div>
-            <div class="summary-label">正常</div>
-          </div>
           <div class="summary-item warning">
             <div class="summary-count">{{ getWarningCount() }}</div>
             <div class="summary-label">预警</div>
@@ -62,31 +58,42 @@ export default {
       };
       return statusMap[status] || '未知';
     },
-    
+
     getTrendClass(value) {
       const numValue = parseFloat(value);
       if (numValue > 10) return 'trend-up';
       if (numValue < 5) return 'trend-down';
       return 'trend-stable';
     },
-    
+
     getTrendText(value) {
       const numValue = parseFloat(value);
       if (numValue > 10) return '偏高';
       if (numValue < 5) return '偏低';
       return '正常';
     },
-    
+
     getNormalCount() {
       return this.data.filter(item => item.status === 'normal').length;
     },
-    
+
     getWarningCount() {
-      return this.data.filter(item => item.status === 'warning').length;
+      // 预警：出现最大回撤的1/2
+      const maxDrawdown = this.data.find(item => item.metric === '最大回测幅度');
+      if (!maxDrawdown) return 0;
+      const halfDrawdown = parseFloat(maxDrawdown.value) / 2;
+      // 只要有一项等于最大回撤的1/2就算预警
+      return this.data.filter(item => parseFloat(item.value) === halfDrawdown).length;
     },
-    
     getDangerCount() {
-      return this.data.filter(item => item.status === 'danger').length;
+      // 风险：出现最大回撤和波动率的1/2
+      const maxDrawdown = this.data.find(item => item.metric === '最大回测幅度');
+      const volatility = this.data.find(item => item.metric === '波动率');
+      if (!maxDrawdown || !volatility) return 0;
+      const halfDrawdown = parseFloat(maxDrawdown.value) / 2;
+      const halfVolatility = parseFloat(volatility.value) / 2;
+      // 只要有一项等于最大回撤的1/2或波动率的1/2就算风险
+      return this.data.filter(item => parseFloat(item.value) === halfDrawdown || parseFloat(item.value) === halfVolatility).length;
     }
   }
 };
@@ -345,4 +352,4 @@ export default {
 .threshold-content::-webkit-scrollbar-thumb:hover {
   background: rgba(64, 224, 255, 0.6);
 }
-</style> 
+</style>

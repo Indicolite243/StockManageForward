@@ -14,63 +14,57 @@
     </div>
 
     <div class="warning-content">
-      <div class="warning-list">
-        <div 
-          v-for="(warning, index) in warnings" 
-          :key="index"
-          class="warning-item"
-          :class="warning.level"
-        >
-          <div class="warning-icon" :class="`icon-${warning.level}`">
-            <div class="icon-pulse"></div>
-          </div>
-          
-          <div class="warning-details">
-            <div class="warning-message">{{ warning.message }}</div>
-            <div class="warning-meta">
-              <span class="warning-time">{{ warning.time }}</span>
-              <span class="warning-action">{{ warning.action }}</span>
+      <div class="market-cap-overview">
+        <div class="overview-title">市值分布详情</div>
+        <div class="market-cap-list">
+          <div
+            v-for="(stock, index) in marketCapData"
+            :key="index"
+            class="stock-item"
+            :class="getStockCategory(stock.marketCap)"
+          >
+            <div class="stock-icon" :class="`icon-${getStockCategory(stock.marketCap)}`">
+              <div class="icon-dot"></div>
             </div>
-          </div>
-          
-          <div class="warning-level-badge" :class="warning.level">
-            {{ getLevelText(warning.level) }}
+
+            <div class="stock-details">
+              <div class="stock-name">{{ stock.name }}</div>
+              <div class="stock-market-cap">
+                市值: {{ stock.marketCap }}亿
+              </div>
+            </div>
+
+            <div class="stock-category-badge" :class="getStockCategory(stock.marketCap)">
+              {{ getCategoryText(stock.marketCap) }}
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="warning-stats">
-        <div class="stats-title">预警统计</div>
+      <div class="market-cap-stats">
+        <div class="stats-title">业绩归因板块</div>
         <div class="stats-grid">
-          <div class="stat-item high">
+          <div class="stat-item small">
             <div class="stat-icon"></div>
             <div class="stat-content">
-              <div class="stat-number">{{ getHighRiskCount() }}</div>
-              <div class="stat-label">高风险</div>
+              <div class="stat-number">{{ getSmallCapCount() }}</div>
+              <div class="stat-label">小市值</div>
             </div>
           </div>
-          
+
           <div class="stat-item medium">
             <div class="stat-icon"></div>
             <div class="stat-content">
-              <div class="stat-number">{{ getMediumRiskCount() }}</div>
-              <div class="stat-label">中风险</div>
+              <div class="stat-number">{{ getMediumCapCount() }}</div>
+              <div class="stat-label">中市值</div>
             </div>
           </div>
-          
-          <div class="stat-item low">
+
+          <div class="stat-item large">
             <div class="stat-icon"></div>
             <div class="stat-content">
-              <div class="stat-number">{{ getLowRiskCount() }}</div>
-              <div class="stat-label">低风险</div>
-            </div>
-          </div>
-          
-          <div class="stat-item normal">
-            <div class="stat-icon"></div>
-            <div class="stat-content">
-              <div class="stat-number">{{ getNormalCount() }}</div>
-              <div class="stat-label">正常</div>
+              <div class="stat-number">{{ getLargeCapCount() }}</div>
+              <div class="stat-label">大市值</div>
             </div>
           </div>
         </div>
@@ -78,13 +72,13 @@
     </div>
 
     <div class="warning-actions">
-      <el-button size="small" type="primary" @click="handleAllWarnings">
+      <el-button size="small" type="primary" @click="handleMarketCapAnalysis">
         <i class="handle-icon"></i>
-        处理全部
+        市值分析
       </el-button>
-      <el-button size="small" @click="refreshWarnings">
+      <el-button size="small" @click="refreshMarketCapData">
         <i class="refresh-icon"></i>
-        刷新状态
+        刷新数据
       </el-button>
     </div>
   </div>
@@ -99,10 +93,20 @@ export default {
       default: () => []
     }
   },
+
   data() {
     return {
       currentTime: '',
-      timer: null
+      timer: null,
+      // 模拟市值数据，实际应用中应该从API获取
+      marketCapData: [
+        { name: '股票A', marketCap: 30, category: 'small' },
+        { name: '股票B', marketCap: 100, category: 'medium' },
+        { name: '股票C', marketCap: 800, category: 'large' },
+        { name: '股票D', marketCap: 45, category: 'small' },
+        { name: '股票E', marketCap: 300, category: 'medium' },
+        { name: '股票F', marketCap: 1200, category: 'large' }
+      ]
     };
   },
   mounted() {
@@ -119,66 +123,57 @@ export default {
       const now = new Date();
       this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
     },
-    
+
     getOverallStatus() {
-      const highRisk = this.getHighRiskCount();
-      const mediumRisk = this.getMediumRiskCount();
-      
-      if (highRisk > 0) return 'status-danger';
-      if (mediumRisk > 0) return 'status-warning';
-      return 'status-safe';
+      const total = this.marketCapData.length;
+      if (total > 0) return 'status-active';
+      return 'status-inactive';
     },
-    
+
     getStatusTitle() {
-      const status = this.getOverallStatus();
-      const statusMap = {
-        'status-danger': '风险预警',
-        'status-warning': '需要关注',
-        'status-safe': '系统正常'
-      };
-      return statusMap[status] || '未知状态';
+      return '市值分布概览';
     },
-    
+
     getStatusSubtitle() {
-      const total = this.warnings.length;
-      const risk = this.getHighRiskCount() + this.getMediumRiskCount();
-      return `共${total}项监控，${risk}项需要关注`;
+      const total = this.marketCapData.length;
+      const small = this.getSmallCapCount();
+      const medium = this.getMediumCapCount();
+      const large = this.getLargeCapCount();
+      return `共${total}只股票：小市值${small}只，中市值${medium}只，大市值${large}只`;
     },
-    
-    getLevelText(level) {
-      const levelMap = {
-        high: '高',
-        medium: '中',
-        low: '低',
-        normal: '正常'
-      };
-      return levelMap[level] || '未知';
+
+    getStockCategory(marketCap) {
+      if (marketCap < 50) return 'small';
+      if (marketCap >= 50 && marketCap < 500) return 'medium';
+      return 'large';
     },
-    
-    getHighRiskCount() {
-      return this.warnings.filter(w => w.level === 'high').length;
+
+    getCategoryText(marketCap) {
+      if (marketCap < 50) return '小市值';
+      if (marketCap >= 50 && marketCap < 500) return '中市值';
+      return '大市值';
     },
-    
-    getMediumRiskCount() {
-      return this.warnings.filter(w => w.level === 'medium').length;
+
+    getSmallCapCount() {
+      return this.marketCapData.filter(stock => stock.marketCap < 50).length;
     },
-    
-    getLowRiskCount() {
-      return this.warnings.filter(w => w.level === 'low').length;
+
+    getMediumCapCount() {
+      return this.marketCapData.filter(stock => stock.marketCap >= 50 && stock.marketCap < 500).length;
     },
-    
-    getNormalCount() {
-      return this.warnings.filter(w => w.level === 'normal').length;
+
+    getLargeCapCount() {
+      return this.marketCapData.filter(stock => stock.marketCap >= 500).length;
     },
-    
-    handleAllWarnings() {
-      console.log('处理全部预警');
-      // 这里可以实现处理所有预警的逻辑
+
+    handleMarketCapAnalysis() {
+      console.log('进行市值分析');
+      // 这里可以实现市值分析的逻辑
     },
-    
-    refreshWarnings() {
-      console.log('刷新预警状态');
-      // 这里可以实现刷新预警数据的逻辑
+
+    refreshMarketCapData() {
+      console.log('刷新市值数据');
+      // 这里可以实现刷新市值数据的逻辑
       this.$emit('refresh');
     }
   }
@@ -218,19 +213,14 @@ export default {
   animation: statusPulse 2s ease-in-out infinite;
 }
 
-.status-circle.status-safe {
-  background: #00ff88;
-  box-shadow: 0 0 12px rgba(0, 255, 136, 0.6);
+.status-circle.status-active {
+  background: #40e0ff;
+  box-shadow: 0 0 12px rgba(64, 224, 255, 0.6);
 }
 
-.status-circle.status-warning {
-  background: #feca57;
-  box-shadow: 0 0 12px rgba(254, 202, 87, 0.6);
-}
-
-.status-circle.status-danger {
-  background: #ff6b6b;
-  box-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
+.status-circle.status-inactive {
+  background: #666666;
+  box-shadow: 0 0 12px rgba(102, 102, 102, 0.6);
 }
 
 @keyframes statusPulse {
@@ -268,13 +258,30 @@ export default {
   overflow: hidden;
 }
 
-.warning-list {
+.market-cap-overview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overview-title {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  padding: 4px;
+  background: rgba(64, 224, 255, 0.1);
+  border-radius: 4px;
+}
+
+.market-cap-list {
   flex: 1;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.warning-item {
+.stock-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -286,29 +293,25 @@ export default {
   transition: all 0.3s ease;
 }
 
-.warning-item:hover {
+.stock-item:hover {
   border-color: rgba(64, 224, 255, 0.4);
   box-shadow: 0 0 10px rgba(64, 224, 255, 0.1);
   transform: translateY(-1px);
 }
 
-.warning-item.high {
+.stock-item.small {
   border-left: 3px solid #ff6b6b;
 }
 
-.warning-item.medium {
+.stock-item.medium {
   border-left: 3px solid #feca57;
 }
 
-.warning-item.low {
+.stock-item.large {
   border-left: 3px solid #48dbfb;
 }
 
-.warning-item.normal {
-  border-left: 3px solid #00ff88;
-}
-
-.warning-icon {
+.stock-icon {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -319,7 +322,7 @@ export default {
   flex-shrink: 0;
 }
 
-.icon-high {
+.icon-small {
   background: rgba(255, 107, 107, 0.2);
   border: 2px solid #ff6b6b;
 }
@@ -329,73 +332,50 @@ export default {
   border: 2px solid #feca57;
 }
 
-.icon-low {
+.icon-large {
   background: rgba(72, 219, 251, 0.2);
   border: 2px solid #48dbfb;
 }
 
-.icon-normal {
-  background: rgba(0, 255, 136, 0.2);
-  border: 2px solid #00ff88;
-}
-
-.icon-pulse {
+.icon-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  animation: iconPulse 1.5s ease-in-out infinite;
 }
 
-.icon-high .icon-pulse {
+.icon-small .icon-dot {
   background: #ff6b6b;
 }
 
-.icon-medium .icon-pulse {
+.icon-medium .icon-dot {
   background: #feca57;
 }
 
-.icon-low .icon-pulse {
+.icon-large .icon-dot {
   background: #48dbfb;
 }
 
-.icon-normal .icon-pulse {
-  background: #00ff88;
-}
 
-@keyframes iconPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.2); }
-}
 
-.warning-details {
+.stock-details {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.warning-message {
+.stock-name {
   color: #ffffff;
   font-size: 11px;
   font-weight: 500;
 }
 
-.warning-meta {
-  display: flex;
-  gap: 8px;
+.stock-market-cap {
   font-size: 9px;
   color: rgba(255, 255, 255, 0.6);
 }
 
-.warning-time {
-  font-family: monospace;
-}
-
-.warning-action {
-  color: #40e0ff;
-}
-
-.warning-level-badge {
+.stock-category-badge {
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 8px;
@@ -403,27 +383,22 @@ export default {
   flex-shrink: 0;
 }
 
-.warning-level-badge.high {
+.stock-category-badge.small {
   background: rgba(255, 107, 107, 0.3);
   color: #ff6b6b;
 }
 
-.warning-level-badge.medium {
+.stock-category-badge.medium {
   background: rgba(254, 202, 87, 0.3);
   color: #feca57;
 }
 
-.warning-level-badge.low {
+.stock-category-badge.large {
   background: rgba(72, 219, 251, 0.3);
   color: #48dbfb;
 }
 
-.warning-level-badge.normal {
-  background: rgba(0, 255, 136, 0.3);
-  color: #00ff88;
-}
-
-.warning-stats {
+.market-cap-stats {
   padding: 8px;
   background: rgba(64, 224, 255, 0.05);
   border: 1px solid rgba(64, 224, 255, 0.2);
@@ -453,7 +428,7 @@ export default {
   transition: all 0.3s ease;
 }
 
-.stat-item.high {
+.stat-item.small {
   background: rgba(255, 107, 107, 0.1);
   border: 1px solid rgba(255, 107, 107, 0.3);
 }
@@ -463,14 +438,9 @@ export default {
   border: 1px solid rgba(254, 202, 87, 0.3);
 }
 
-.stat-item.low {
+.stat-item.large {
   background: rgba(72, 219, 251, 0.1);
   border: 1px solid rgba(72, 219, 251, 0.3);
-}
-
-.stat-item.normal {
-  background: rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.3);
 }
 
 .stat-item:hover {
@@ -484,7 +454,7 @@ export default {
   flex-shrink: 0;
 }
 
-.stat-item.high .stat-icon {
+.stat-item.small .stat-icon {
   background: #ff6b6b;
   box-shadow: 0 0 4px rgba(255, 107, 107, 0.6);
 }
@@ -494,14 +464,9 @@ export default {
   box-shadow: 0 0 4px rgba(254, 202, 87, 0.6);
 }
 
-.stat-item.low .stat-icon {
+.stat-item.large .stat-icon {
   background: #48dbfb;
   box-shadow: 0 0 4px rgba(72, 219, 251, 0.6);
-}
-
-.stat-item.normal .stat-icon {
-  background: #00ff88;
-  box-shadow: 0 0 4px rgba(0, 255, 136, 0.6);
 }
 
 .stat-content {
@@ -551,22 +516,22 @@ export default {
 }
 
 /* 滚动条样式 */
-.warning-list::-webkit-scrollbar {
+.market-cap-list::-webkit-scrollbar {
   width: 4px;
 }
 
-.warning-list::-webkit-scrollbar-track {
+.market-cap-list::-webkit-scrollbar-track {
   background: rgba(64, 224, 255, 0.1);
   border-radius: 2px;
 }
 
-.warning-list::-webkit-scrollbar-thumb {
+.market-cap-list::-webkit-scrollbar-thumb {
   background: rgba(64, 224, 255, 0.4);
   border-radius: 2px;
   transition: background 0.3s ease;
 }
 
-.warning-list::-webkit-scrollbar-thumb:hover {
+.market-cap-list::-webkit-scrollbar-thumb:hover {
   background: rgba(64, 224, 255, 0.6);
 }
 
@@ -589,4 +554,4 @@ export default {
   box-shadow: 0 0 15px rgba(64, 224, 255, 0.4) !important;
   transform: translateY(-1px);
 }
-</style> 
+</style>
