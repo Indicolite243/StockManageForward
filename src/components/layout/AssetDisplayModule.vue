@@ -117,11 +117,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { fetchAccountInfo } from '@/api/accountApi.js';
 
 const accounts = ref([]);
 const selectedAccount = ref('');
+let timer = null;
 
 const headerStyle = () => ({
   backgroundColor: 'rgba(64, 224, 255, 0.2)',
@@ -147,14 +148,17 @@ const tableRowClassName = ({ rowIndex }) => {
   return '';
 };
 
-onMounted(async () => {
+const loadAccountData = async () => {
   try {
-    console.log('开始获取账户信息...');
+    // console.log('开始获取账户信息...');
     const data = await fetchAccountInfo();
-    console.log('获取到的账户数据:', data);
+    // console.log('获取到的账户数据:', data);
     if (data && data.accounts) {
+      // 保存当前选中的账户ID，以便更新后恢复选中状态
+      const currentSelectedId = selectedAccount.value;
+
       accounts.value = data.accounts.map((account) => {
-        console.log('处理账户数据:', account.account_id);
+        // console.log('处理账户数据:', account.account_id);
         const initialTotalAsset = 10000000;
         const totalReturnRate = initialTotalAsset !== 0
           ? ((account.total_asset - initialTotalAsset) / initialTotalAsset) * 100
@@ -172,14 +176,34 @@ onMounted(async () => {
       });
 
       if (accounts.value.length > 0) {
-        selectedAccount.value = accounts.value[0].account_id;
-        console.log('已选择默认账户:', selectedAccount.value);
+        // 如果之前没有选中账户，或者选中的账户不在新列表中，则默认选中第一个
+        if (!currentSelectedId || !accounts.value.find(acc => acc.account_id === currentSelectedId)) {
+          selectedAccount.value = accounts.value[0].account_id;
+          console.log('已选择默认账户:', selectedAccount.value);
+        } else {
+          // 保持之前的选中状态
+          selectedAccount.value = currentSelectedId;
+        }
       }
     } else {
       console.warn('获取到的账户数据格式不正确:', data);
     }
   } catch (error) {
     console.error('获取账户信息失败：', error);
+  }
+};
+
+onMounted(() => {
+  loadAccountData();
+  // 设置定时器，每3秒更新一次数据
+  timer = setInterval(loadAccountData, 3000);
+});
+
+onUnmounted(() => {
+  // 组件卸载时清除定时器
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
   }
 });
 
@@ -215,9 +239,9 @@ const selectedStocks = computed(() => {
     .map((pos) => {
       return {
         stock_code: pos.stock_code,
-        open_price: formatNumber(pos.open_price, 4),
+        open_price: formatNumber(pos.open_price, 2),
         volume: formatNumber(pos.volume, 0),
-        avg_price: formatNumber(pos.avg_price, 4),
+        avg_price: formatNumber(pos.avg_price, 2),
         market_value: formatNumber(pos.market_value, 2),
       };
     });

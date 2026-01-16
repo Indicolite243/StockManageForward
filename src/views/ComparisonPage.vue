@@ -57,7 +57,7 @@
               <div class="status-indicator"></div>
             </div>
             <div class="panel-content">
-              <ComparisonChart :chart-type="getChartType()" />
+              <ComparisonChart ref="comparisonChart" :chart-type="getChartType()" />
             </div>
           </div>
 
@@ -90,7 +90,11 @@
               <div class="status-indicator"></div>
             </div>
             <div class="panel-content">
-              <ComparisonTable :table-type="getTableType()" />
+              <ComparisonTable
+                ref="comparisonTable"
+                :table-type="getTableType()"
+                @account-changed="handleAccountChange"
+              />
             </div>
           </div>
 
@@ -126,6 +130,7 @@ import ComparisonChart from '@/components/comparison/ComparisonChart.vue';
 import RiskThreshold from '@/components/comparison/RiskThreshold.vue';
 import ComparisonTable from '@/components/comparison/ComparisonTable.vue';
 import RiskWarning from '@/components/comparison/RiskWarning.vue';
+import { fetchRiskAssessment } from '@/api/riskThresholdApi.js';
 
 export default {
   name: 'ComparisonPage',
@@ -138,12 +143,8 @@ export default {
   data() {
     return {
       activeMenu: 'asset',
-      riskThresholdData: [
-        { metric: '最大本金损失', value: '5%', status: 'normal' },
-        { metric: '波动率', value: '12%', status: 'warning' },
-        { metric: '最大回测幅度', value: '8%', status: 'normal' },
-        { metric: 'VaR值', value: '3.2%', status: 'normal' }
-      ],
+      riskThresholdData: [],
+      refreshTimer: null,
       riskWarnings: [
         {
           level: 'low',
@@ -160,7 +161,69 @@ export default {
       ]
     };
   },
+  async mounted() {
+    console.log('🚀 ComparisonPage mounted - 开始加载数据');
+    await this.loadRiskThresholdData();
+    this.startRefreshTimer();
+  },
+  beforeUnmount() {
+    this.stopRefreshTimer();
+  },
   methods: {
+    startRefreshTimer() {
+      if (this.refreshTimer) return;
+      console.log('⏱️ 启动自动刷新定时器');
+      this.refreshTimer = setInterval(() => {
+        this.refreshAllData();
+      }, 3000);
+    },
+
+    stopRefreshTimer() {
+      if (this.refreshTimer) {
+        console.log('🛑 停止自动刷新定时器');
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+      }
+    },
+
+    async refreshAllData() {
+      // 刷新风险阈值
+      this.loadRiskThresholdData();
+
+      // 获取表格当前选中的账户ID
+      let currentAccountId = null;
+      if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
+        currentAccountId = this.$refs.comparisonTable.selectedAccount;
+      }
+
+      // 刷新图表 (传入账户ID)
+      if (this.$refs.comparisonChart && typeof this.$refs.comparisonChart.updateChart === 'function') {
+        this.$refs.comparisonChart.updateChart(currentAccountId);
+      }
+
+      // 刷新表格
+      if (this.$refs.comparisonTable && typeof this.$refs.comparisonTable.refreshData === 'function') {
+        this.$refs.comparisonTable.refreshData();
+      }
+    },
+
+    async loadRiskThresholdData() {
+      try {
+        console.log('📡 开始请求风险阈值数据...');
+        const data = await fetchRiskAssessment('DEMO000001', 30);
+        console.log('✅ 风险阈值数据返回:', data);
+
+        // 兼容两种数据格式
+        this.riskThresholdData = data.risk_indicators || data.indicators || [];
+
+        console.log('📊 风险阈值赋值后:', this.riskThresholdData);
+      } catch (error) {
+        console.error('❌ 获取风险阈值数据失败:', error);
+        // 不显示数据
+        this.riskThresholdData = [];
+      }
+    },
+
     setActiveMenu(menu) {
       this.activeMenu = menu;
     },
@@ -169,6 +232,13 @@ export default {
     },
     getTableType() {
       return this.activeMenu; // 根据选中的菜单返回表格类型
+    },
+    handleAccountChange(accountId) {
+      console.log('ComparisonPage received account change:', accountId);
+      // 当表格中的账户改变时，更新图表
+      if (this.$refs.comparisonChart && typeof this.$refs.comparisonChart.updateChart === 'function') {
+        this.$refs.comparisonChart.updateChart(accountId);
+      }
     }
   }
 };

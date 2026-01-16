@@ -1,37 +1,58 @@
 <template>
-  <div class="comparison-table">
+  <div class="comparison-table" v-loading="loading && assetTableData.length === 0">
     <div class="table-header">
       <div class="table-title">{{ getTableTitle() }}</div>
-      <div class="table-actions">
-        <el-button size="small" type="primary" @click="exportData">
-          <i class="export-icon"></i>
-          导出
-        </el-button>
-        <el-button size="small" @click="refreshData">
-          <i class="refresh-icon"></i>
-          刷新
-        </el-button>
+
+      <!-- 添加账户选择器 -->
+      <div class="table-controls">
+        <el-select
+          v-model="selectedAccount"
+          placeholder="请选择账户"
+          size="small"
+          @change="handleAccountChange"
+          class="account-selector"
+        >
+          <el-option
+            v-for="account in accounts"
+            :key="account.account_id"
+            :label="account.account_id"
+            :value="account.account_id"
+          />
+        </el-select>
+
+        <div class="table-actions">
+          <el-button size="small" type="primary" @click="exportData">
+            <i class="export-icon"></i>
+            导出
+          </el-button>
+          <el-button size="small" @click="refreshData">
+            <i class="refresh-icon"></i>
+            刷新
+          </el-button>
+        </div>
       </div>
     </div>
 
-         <div class="table-content">
-       <el-table
-         :data="tableData"
-         style="width: 100%"
-         height="100%"
-         :header-cell-style="headerCellStyle"
-         :cell-style="cellStyle"
-         stripe
-         fit
-       >
-                 <el-table-column
-           v-for="column in tableColumns"
-           :key="column.prop"
-           :prop="column.prop"
-           :label="column.label"
-           :min-width="column.minWidth"
-           :formatter="column.formatter"
-         >
+    <div class="table-content">
+      <el-table
+        :data="tableData"
+        row-key="stock_code"
+        style="width: 100%"
+        height="100%"
+        :header-cell-style="headerCellStyle"
+        :cell-style="cellStyle"
+        stripe
+        fit
+      >
+        <el-table-column
+          v-for="column in tableColumns"
+          :key="column.prop"
+          :prop="column.prop"
+          :label="column.label"
+          :min-width="column.minWidth"
+          :formatter="column.formatter"
+        >
+          <!-- 自定义渲染逻辑 -->
           <template #default="{ row, column: col }" v-if="column.prop === 'trend'">
             <div class="trend-cell">
               <div class="trend-indicator" :class="getTrendClass(row[col.property])"></div>
@@ -45,6 +66,12 @@
               </el-tag>
             </div>
           </template>
+          <!-- 默认渲染逻辑：确保非 trend/risk 列也能正常显示 -->
+          <template #default="{ row, column: col }" v-else>
+            <span :class="{'stock-code-text': column.prop === 'stock_code'}">
+              {{ column.formatter ? column.formatter(row, col, row[col.property]) : row[col.property] }}
+            </span>
+          </template>
         </el-table-column>
       </el-table>
     </div>
@@ -52,6 +79,9 @@
 </template>
 
 <script>
+import { fetchYearlyComparisonData, fetchAreaComparison } from '@/api/comparisonModuleApi.js';
+import { fetchAccountInfo } from '@/api/accountApi.js';
+
 export default {
   name: 'ComparisonTable',
   props: {
@@ -60,17 +90,38 @@ export default {
       default: 'asset'
     }
   },
+  data() {
+    return {
+      assetTableData: [],
+      timeTableData: [],
+      regionTableData: [],
+      loading: false,
+      selectedAccount: '',
+      accounts: [],
+      timer: null
+    };
+  },
+  created() {
+    this.loadAccounts();
+  },
+  mounted() {
+    // 启动 3 秒定时刷新，与图表同步
+    this.startPolling();
+  },
+  beforeUnmount() {
+    this.stopPolling();
+  },
   computed: {
     tableData() {
       switch (this.tableType) {
         case 'asset':
-          return this.getAssetData();
+          return this.assetTableData;
         case 'time':
-          return this.getTimeData();
+          return this.timeTableData;
         case 'region':
-          return this.getRegionData();
+          return this.regionTableData;
         default:
-          return this.getAssetData();
+          return [];
       }
     },
 
@@ -78,38 +129,183 @@ export default {
       switch (this.tableType) {
         case 'asset':
           return [
-            { prop: 'name', label: '资产名称', minWidth: '120' },
-            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
-            { prop: 'volatility', label: '波动率', minWidth: '100', formatter: this.formatPercent },
-            { prop: 'sharpe', label: '夏普比率', minWidth: '120' },
-            { prop: 'trend', label: '趋势', minWidth: '100' },
-            { prop: 'risk', label: '历史分位', minWidth: '120' }
+            { prop: 'stock_code', label: '股票代码', minWidth: '100' },
+            { prop: 'stock_name', label: '股票名称', minWidth: '100' },
+            { prop: 'current_price', label: '当前价格', minWidth: '100', formatter: this.formatNumber },
+            { prop: 'volume', label: '持仓数量', minWidth: '100', formatter: this.formatNumber },
+            { prop: 'market_value', label: '股票市值', minWidth: '120', formatter: this.formatNumber },
+            { prop: 'asset_ratio', label: '资产占比(%)', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'daily_return', label: '持仓盈亏(%)', minWidth: '100', formatter: this.formatPercent }
           ];
         case 'time':
           return [
-            { prop: 'period', label: '时间段', minWidth: '120' },
-            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
-            { prop: 'maxDrawdown', label: '最大回撤', minWidth: '120', formatter: this.formatPercent },
-            { prop: 'winRate', label: '胜率', minWidth: '100', formatter: this.formatPercent },
-            { prop: 'trades', label: '交易次数', minWidth: '120' },
-            { prop: 'risk', label: '风险等级', minWidth: '120' }
+            { prop: 'year', label: '年份', minWidth: '100' },
+            { prop: 'totalAssets', label: '总资产(元)', minWidth: '150', formatter: this.formatNumber },
+            { prop: 'returnRate', label: '回报率(%)', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'investmentRate', label: '投资占比(%)', minWidth: '120', formatter: this.formatPercent }
           ];
         case 'region':
           return [
             { prop: 'region', label: '地区', minWidth: '120' },
-            { prop: 'allocation', label: '配置比例', minWidth: '120', formatter: this.formatPercent },
-            { prop: 'return', label: '收益率', minWidth: '100', formatter: this.formatPercent },
-            { prop: 'correlation', label: '相关性', minWidth: '120' },
-            { prop: 'trend', label: '趋势', minWidth: '100' },
-            { prop: 'risk', label: '风险等级', minWidth: '120' }
+            { prop: 'totalAssets', label: '总资产(元)', minWidth: '150', formatter: this.formatNumber },
+            { prop: 'returnRate', label: '回报率', minWidth: '100' },
+            { prop: 'investmentRate', label: '投资占比', minWidth: '120' }
           ];
         default:
           return [];
       }
     }
   },
-
+  watch: {
+    tableType: {
+      handler(newType) {
+        console.log(`📊 表格类型切换: ${newType}`);
+        this.loadTableData(newType);
+      },
+      immediate: true
+    }
+  },
   methods: {
+    startPolling() {
+      this.timer = setInterval(() => {
+        if (this.tableType === 'asset') {
+          this.loadAssetData(false);
+        }
+      }, 3000);
+    },
+
+    stopPolling() {
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+    },
+
+    async loadAccounts() {
+      this.loading = true;
+      try {
+        const data = await fetchAccountInfo();
+        if (data && data.accounts && data.accounts.length > 0) {
+          this.accounts = data.accounts;
+          // 优先保留已有选择，否则选第一个
+          if (!this.selectedAccount || !this.accounts.some(a => a.account_id === this.selectedAccount)) {
+            this.selectedAccount = this.accounts[0].account_id;
+          }
+          await this.loadTableData(this.tableType, false);
+        } else {
+          console.warn('⚠️ 资产对比表格: 未获取到账户列表');
+        }
+      } catch (error) {
+        console.error('❌ 获取账户列表失败:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    handleAccountChange() {
+      this.loadTableData(this.tableType, true);
+      this.$emit('account-changed', this.selectedAccount);
+    },
+
+    async loadTableData(type, showLoading = true) {
+      if (!this.selectedAccount && type === 'asset') {
+        // 如果是资产对比但没选账户，先加载账户
+        await this.loadAccounts();
+        return;
+      }
+
+      if (showLoading) this.loading = true;
+
+      try {
+        switch (type) {
+          case 'asset':
+            await this.loadAssetData(false); // loadTableData 已经处理了 loading
+            break;
+          case 'time':
+            await this.loadTimeData();
+            break;
+          case 'region':
+            await this.loadRegionData();
+            break;
+        }
+      } catch (error) {
+        console.error(`❌ 加载${type}表格数据失败:`, error);
+      } finally {
+        if (showLoading) this.loading = false;
+      }
+    },
+
+    async loadAssetData(showLoading = true) {
+      if (showLoading) this.loading = true;
+      try {
+        const data = await fetchAccountInfo();
+        if (!data || !data.accounts || data.accounts.length === 0) return;
+
+        // 同步更新账户列表，确保下拉框数据最新
+        this.accounts = data.accounts;
+
+        // 如果当前没选账户，自动选第一个
+        if (!this.selectedAccount) {
+          this.selectedAccount = data.accounts[0].account_id;
+        }
+
+        const targetAccountId = this.selectedAccount;
+        const account = data.accounts.find(acc => acc.account_id === targetAccountId);
+
+        if (!account) {
+          console.warn(`未找到账户: ${targetAccountId}`);
+          return;
+        }
+
+        const positions = account.positions || [];
+        const totalMarketValue = Number(account.market_value) || positions.reduce((sum, p) => sum + Number(p.market_value), 0);
+
+        const processedData = positions.map(pos => {
+          const currentPrice = Number(pos.open_price) || 0;
+          const costPrice = Number(pos.avg_price) || 0;
+          const marketValue = Number(pos.market_value) || 0;
+          const assetRatio = totalMarketValue > 0 ? (marketValue / totalMarketValue * 100) : 0;
+          const profitLossRate = costPrice > 0 ? ((currentPrice - costPrice) / costPrice * 100) : 0;
+
+          return {
+            stock_code: pos.stock_code,
+            stock_name: pos.stock_name,
+            current_price: currentPrice,
+            volume: Number(pos.volume),
+            market_value: marketValue,
+            asset_ratio: assetRatio.toFixed(2),
+            daily_return: profitLossRate.toFixed(2)
+          };
+        });
+
+        processedData.sort((a, b) => b.market_value - a.market_value);
+        this.assetTableData = processedData;
+
+      } catch (error) {
+        console.error('❌ 获取资产对比表格数据失败:', error);
+      }
+    },
+
+    async loadTimeData() {
+      try {
+        const data = await fetchYearlyComparisonData(this.selectedAccount);
+        this.timeTableData = data.yearly_data || [];
+      } catch (error) {
+        console.error('❌ 获取年度对比表格数据失败:', error);
+        this.timeTableData = [];
+      }
+    },
+
+    async loadRegionData() {
+      try {
+        const data = await fetchAreaComparison(this.selectedAccount);
+        this.regionTableData = data.region_data || [];
+      } catch (error) {
+        console.error('❌ 获取地区对比表格数据失败:', error);
+        this.regionTableData = [];
+      }
+    },
+
     getTableTitle() {
       const titleMap = {
         asset: '资产对比数据',
@@ -119,134 +315,13 @@ export default {
       return titleMap[this.tableType] || '对比数据';
     },
 
-    getAssetData() {
-      return [
-        {
-          name: '股票A',
-          return: 12.5,
-          volatility: 15.2,
-          sharpe: 1.85,
-          trend: '牛式',
-          risk: '90%'
-        },
-        {
-          name: '股票B',
-          return: 8.3,
-          volatility: 18.7,
-          sharpe: 1.42,
-          trend: '震荡',
-          risk: '70%'
-        },
-        {
-          name: '基金C',
-          return: 15.8,
-          volatility: 12.4,
-          sharpe: 2.12,
-          trend: '牛式',
-          risk: '30%'
-        },
-        {
-          name: '债券D',
-          return: 4.2,
-          volatility: 3.8,
-          sharpe: 1.08,
-          trend: '震荡',
-          risk: '10%'
-        },
-        {
-          name: '期货E',
-          return: -2.1,
-          volatility: 25.6,
-          sharpe: -0.15,
-          trend: '熊式',
-          risk: '5%'
-        }
-      ];
-    },
-
-    getTimeData() {
-      return [
-        {
-          period: '近1月',
-          return: 3.2,
-          maxDrawdown: -1.8,
-          winRate: 68.5,
-          trades: 15,
-          risk: '低'
-        },
-        {
-          period: '近3月',
-          return: 8.7,
-          maxDrawdown: -3.5,
-          winRate: 72.3,
-          trades: 42,
-          risk: '中'
-        },
-        {
-          period: '近6月',
-          return: 16.4,
-          maxDrawdown: -5.2,
-          winRate: 65.8,
-          trades: 89,
-          risk: '中'
-        },
-        {
-          period: '近1年',
-          return: 28.9,
-          maxDrawdown: -8.7,
-          winRate: 69.2,
-          trades: 178,
-          risk: '中'
-        },
-        {
-          period: '近2年',
-          return: 45.6,
-          maxDrawdown: -12.3,
-          winRate: 71.5,
-          trades: 356,
-          risk: '高'
-        }
-      ];
-    },
-
-    getRegionData() {
-      return [
-        {
-          region: 'A股',
-          allocation: 45.0,
-          return: 12.8,
-          correlation: 0.85,
-          trend: '牛式',
-          risk: '中'
-        },
-        {
-          region: '港股',
-          allocation: 25.0,
-          return: 8.5,
-          correlation: 0.72,
-          trend: '震荡',
-          risk: '中'
-        },
-        {
-          region: '美股',
-          allocation: 20.0,
-          return: 15.2,
-          correlation: 0.45,
-          trend: '牛式',
-          risk: '中'
-        },
-        {
-          region: '欧股',
-          allocation: 10.0,
-          return: 6.3,
-          correlation: 0.68,
-          trend: '震荡',
-          risk: '低'
-        }
-      ];
+    formatNumber(row, column, cellValue) {
+      if (cellValue === null || cellValue === undefined || cellValue === '') return '-';
+      return Number(cellValue).toLocaleString();
     },
 
     formatPercent(row, column, cellValue) {
+      if (cellValue === null || cellValue === undefined || cellValue === '') return '-';
       return `${cellValue}%`;
     },
 
@@ -270,32 +345,32 @@ export default {
 
     headerCellStyle() {
       return {
-        backgroundColor: 'rgba(64, 224, 255, 0.2)',
-        color: '#000000',
+        backgroundColor: 'rgba(64, 224, 255, 0.15)',
+        color: '#40e0ff',
         fontWeight: 'bold',
-        fontSize: '11px',
-        padding: '8px'
+        fontSize: '12px',
+        padding: '10px 0',
+        borderBottom: '1px solid rgba(64, 224, 255, 0.3)'
       };
     },
 
     cellStyle() {
       return {
         backgroundColor: 'transparent',
-        color: '#000000',
-        fontSize: '10px',
-        padding: '6px'
+        color: '#ffffff',
+        fontSize: '11px',
+        padding: '8px 0',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
       };
     },
 
     exportData() {
       console.log('导出数据:', this.tableData);
-      // 这里可以实现实际的导出功能
     },
 
-    refreshData() {
-      console.log('刷新数据');
-      // 这里可以实现数据刷新功能
-    }
+    async refreshData() {
+      await this.loadTableData(this.tableType);
+    },
   }
 };
 </script>
@@ -314,24 +389,32 @@ export default {
   align-items: center;
   padding: 10px 0;
   margin-bottom: 10px;
-  border-bottom: 1px solid rgba(64, 224, 255, 0.2);
 }
 
 .table-title {
   color: #ffffff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: bold;
-  text-shadow: 0 0 8px rgba(64, 224, 255, 0.5);
 }
 
-.table-actions {
+.table-controls {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 15px;
+}
+
+.account-selector {
+  width: 140px;
 }
 
 .table-content {
   flex: 1;
   overflow: hidden;
+}
+
+.stock-code-text {
+  color: #40e0ff;
+  font-weight: 500;
 }
 
 .trend-cell {
@@ -343,134 +426,51 @@ export default {
 .trend-indicator {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: 50%;
 }
 
-.trend-up {
-  background: #00ff88;
-  box-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
-}
+.trend-up { background: #00ff88; }
+.trend-down { background: #ff6b6b; }
+.trend-stable { background: #feca57; }
 
-.trend-down {
-  background: #ff6b6b;
-  box-shadow: 0 0 6px rgba(255, 107, 107, 0.6);
-}
-
-.trend-stable {
-  background: #feca57;
-  box-shadow: 0 0 6px rgba(254, 202, 87, 0.6);
-}
-
-.risk-cell {
-  display: flex;
-  justify-content: center;
-}
-
-.export-icon,
-.refresh-icon {
-  width: 12px;
-  height: 12px;
-  margin-right: 4px;
-  display: inline-block;
-}
-
-.export-icon {
-  background: currentColor;
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z'/%3E%3C/svg%3E");
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
-}
-
-.refresh-icon {
-  background: currentColor;
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z'/%3E%3C/svg%3E");
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
-}
-
-/* Element UI表格样式覆盖 */
+/* Table Overrides */
 :deep(.el-table) {
-  background: transparent !important;
-  color: #000000 !important;
-  border: 1px solid rgba(64, 224, 255, 0.2) !important;
-  border-radius: 8px !important;
-  overflow: hidden;
-  width: 100% !important;
+  background-color: transparent !important;
+  --el-table-border-color: rgba(255, 255, 255, 0.1);
 }
 
-:deep(.el-table__body-wrapper) {
-  width: 100% !important;
+:deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
 
-:deep(.el-table__header-wrapper) {
-  width: 100% !important;
+:deep(.el-table tr) {
+  background-color: transparent !important;
 }
 
-:deep(.el-table th.el-table__cell) {
-  background: rgba(64, 224, 255, 0.2) !important;
-  color: #000000 !important;
-  border-bottom: 1px solid rgba(64, 224, 255, 0.3) !important;
-  font-weight: bold !important;
+:deep(.el-table--striped .el-table__row--striped td.el-table__cell) {
+  background-color: rgba(255, 255, 255, 0.02) !important;
 }
 
-:deep(.el-table td.el-table__cell) {
-  background: transparent !important;
-  color: #000000 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
-
-:deep(.el-table tr:hover td) {
-  background: rgba(64, 224, 255, 0.1) !important;
-}
-
-:deep(.el-table__row.el-table__row--striped td) {
-  background: rgba(255, 255, 255, 0.02) !important;
-}
-
-:deep(.el-table__row.el-table__row--striped:hover td) {
-  background: rgba(64, 224, 255, 0.1) !important;
+:deep(.el-table__row:hover td.el-table__cell) {
+  background-color: rgba(64, 224, 255, 0.05) !important;
 }
 
 :deep(.el-button) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.2), rgba(30, 144, 255, 0.2)) !important;
-  border: 1px solid rgba(64, 224, 255, 0.4) !important;
+  background: rgba(64, 224, 255, 0.1) !important;
+  border: 1px solid rgba(64, 224, 255, 0.3) !important;
+  color: #40e0ff !important;
+}
+
+:deep(.el-button--primary) {
+  background: rgba(64, 224, 255, 0.2) !important;
+}
+
+:deep(.el-select .el-input__wrapper) {
+  background: rgba(12, 20, 38, 0.8) !important;
+  box-shadow: 0 0 0 1px rgba(64, 224, 255, 0.2) inset !important;
+}
+
+:deep(.el-select .el-input__inner) {
   color: #ffffff !important;
-  border-radius: 6px !important;
-  box-shadow: 0 0 10px rgba(64, 224, 255, 0.2) !important;
-  transition: all 0.3s ease !important;
-  font-size: 11px !important;
-  padding: 4px 12px !important;
-  height: auto !important;
-}
-
-:deep(.el-button:hover) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.4), rgba(30, 144, 255, 0.4)) !important;
-  border-color: rgba(64, 224, 255, 0.8) !important;
-  box-shadow: 0 0 15px rgba(64, 224, 255, 0.4) !important;
-  transform: translateY(-1px);
-}
-
-:deep(.el-tag) {
-  border: none !important;
-  font-size: 10px !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-}
-
-:deep(.el-tag.el-tag--success) {
-  background: rgba(0, 255, 136, 0.2) !important;
-  color: #00ff88 !important;
-}
-
-:deep(.el-tag.el-tag--warning) {
-  background: rgba(254, 202, 87, 0.2) !important;
-  color: #feca57 !important;
-}
-
-:deep(.el-tag.el-tag--danger) {
-  background: rgba(255, 107, 107, 0.2) !important;
-  color: #ff6b6b !important;
 }
 </style>
