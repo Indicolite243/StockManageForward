@@ -18,7 +18,7 @@ const api = axios.create({
 /**
  * 获取综合风险评估（所有指标）
  * API: /api/risk-threshold/assessment/?account_id=DEMO000001
- * 
+ *
  * 后端返回格式（根据文档）:
  * {
  *   account_id: "DEMO000001",
@@ -27,7 +27,7 @@ const api = axios.create({
  *   max_drawdown: { max_drawdown: 5.25, status: "正常", ... },
  *   var: { var_rate: 1.50, status: "正常", ... }
  * }
- * 
+ *
  * 转换为前端需要的格式:
  * {
  *   risk_indicators: [
@@ -39,14 +39,18 @@ const api = axios.create({
 export async function fetchRiskAssessment(accountId = 'DEMO000001', days = 30) {
   try {
     const response = await api.get('/api/risk-threshold/assessment/', {
-      params: { account_id: accountId, days }
+      params: {
+        account_id: accountId,
+        days,
+        mock: 'false' // 使用真实账户数据
+      }
     });
     console.log('✅ 风险评估 - 后端原始数据:', response.data);
-    
+
     // 转换后端数据格式为前端需要的格式
     const transformed = transformRiskData(response.data);
     console.log('✅ 风险评估 - 转换后数据:', transformed);
-    
+
     return transformed;
   } catch (error) {
     console.error('❌ 获取风险评估数据失败:', error);
@@ -59,7 +63,7 @@ export async function fetchRiskAssessment(accountId = 'DEMO000001', days = 30) {
  */
 function transformRiskData(backendData) {
   const risk_indicators = [];
-  
+
   // 转换最大本金损失
   if (backendData.max_principal_loss) {
     risk_indicators.push({
@@ -68,7 +72,7 @@ function transformRiskData(backendData) {
       status: mapStatus(backendData.max_principal_loss.status)
     });
   }
-  
+
   // 转换波动率
   if (backendData.volatility) {
     risk_indicators.push({
@@ -77,7 +81,7 @@ function transformRiskData(backendData) {
       status: mapStatus(backendData.volatility.status)
     });
   }
-  
+
   // 转换最大回撤
   if (backendData.max_drawdown) {
     risk_indicators.push({
@@ -86,7 +90,7 @@ function transformRiskData(backendData) {
       status: mapStatus(backendData.max_drawdown.status)
     });
   }
-  
+
   // 转换VaR值
   if (backendData.var) {
     risk_indicators.push({
@@ -95,7 +99,7 @@ function transformRiskData(backendData) {
       status: mapStatus(backendData.var.status)
     });
   }
-  
+
   return { risk_indicators };
 }
 

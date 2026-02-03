@@ -23,17 +23,16 @@ export default {
       loading: false,
       currentAccountId: null,
       lastOption: null,
-      timer: null
+      lastChartType: null, // 记录上一次渲染的图表类型
+      timer: null,
+      updateTaskId: 0 // 用于追踪异步请求，防止数据重合
     };
   },
   mounted() {
     this.initChart();
     window.addEventListener('resize', this.handleResize);
-    // 启动 3 秒定时刷新，获取实时账户持仓并计算占比
-    this.startPolling();
   },
   beforeUnmount() {
-    this.stopPolling();
     window.removeEventListener('resize', this.handleResize);
     if (this.myChart) {
       this.myChart.dispose();
@@ -56,18 +55,13 @@ export default {
       this.updateChart();
     },
 
-    startPolling() {
-      // 每3秒计算一次占比并刷新显示
-      this.timer = setInterval(() => {
-        this.updateChart(null, false);
-      }, 3000);
-    },
-
-    stopPolling() {
-      if (this.timer) {
-        clearInterval(this.timer);
-        this.timer = null;
-      }
+    /**
+     * 设置外部传入的数据，加速渲染并确保同步
+     */
+    setData(data, accountId) {
+      if (!this.myChart) return;
+      this.currentAccountId = accountId;
+      this.renderChartData(data);
     },
 
     async updateChart(accountId, forceRefresh = false) {
@@ -78,47 +72,98 @@ export default {
       }
 
       const targetAccountId = accountId || this.currentAccountId;
+      const requestedType = this.chartType;
+      const taskId = ++this.updateTaskId;
 
       // 仅在首次加载或强制刷新时显示 loading
       if (!this.lastOption || forceRefresh) {
         this.loading = true;
       }
 
+      // 如果是强制刷新（切换类型），先清空图表
+      if (forceRefresh && this.myChart) {
+        this.myChart.clear();
+      }
+
+      try {
+        let rawData = null;
+        if (requestedType === 'asset') {
+          const accountData = await fetchAccountInfo();
+          if (accountData && accountData.accounts) {
+            rawData = accountData.accounts.find(a => a.account_id === targetAccountId) || accountData.accounts[0];
+          }
+        } else if (requestedType === 'time') {
+          rawData = await fetchYearlyComparisonData(targetAccountId);
+        } else if (requestedType === 'region') {
+          rawData = await fetchAreaComparison(targetAccountId);
+        }
+
+        if (taskId !== this.updateTaskId) return;
+        this.renderChartData(rawData, forceRefresh);
+      } catch (error) {
+        console.error(`❌ 更新图表失败: ${requestedType}`, error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
+     * 核心渲染逻辑，支持同步/异步调用
+     */
+    async renderChartData(rawData, forceRefresh = false) {
+      if (!rawData || !this.myChart) return;
+
+      const requestedType = this.chartType;
       let option = {};
 
       try {
-        if (this.chartType === 'asset') {
-          option = await this.getAssetComparisonOption(targetAccountId);
-        } else if (this.chartType === 'time') {
-          option = await this.getTimeComparisonOption(targetAccountId);
-        } else if (this.chartType === 'region') {
-          option = await this.getRegionComparisonOption(targetAccountId);
-        } else {
-          option = await this.getAssetComparisonOption(targetAccountId);
+        if (requestedType === 'asset') {
+          option = await this.processAssetOption(rawData);
+        } else if (requestedType === 'time') {
+          option = await this.processTimeOption(rawData);
+        } else if (requestedType === 'region') {
+          option = await this.processRegionOption(rawData);
         }
 
         // 彻底清空之前的标题和配置干扰
-        option.title = { show: false };
+        if (!option.title) option.title = { show: false };
 
-        // 保持滚动条位置
-        if (this.chartType === 'asset' && this.myChart && !forceRefresh) {
+        // 💡 保持滚动条位置 (仅在非强制刷新且类型未变时)
+        if (this.myChart && !forceRefresh && this.lastChartType === requestedType) {
           const currentOption = this.myChart.getOption();
-          if (currentOption && currentOption.dataZoom && currentOption.dataZoom.length > 0) {
-            const start = currentOption.dataZoom[0].start;
-            const end = currentOption.dataZoom[0].end;
-            if (option.dataZoom && option.dataZoom.length > 0) {
-              option.dataZoom.forEach(zoom => {
-                delete zoom.startValue;
-                delete zoom.endValue;
-                zoom.start = start;
-                zoom.end = end;
+          if (currentOption && currentOption.dataZoom) {
+            const currentZooms = Array.isArray(currentOption.dataZoom) ? currentOption.dataZoom : [currentOption.dataZoom];
+            if (option.dataZoom) {
+              const newZooms = Array.isArray(option.dataZoom) ? option.dataZoom : [option.dataZoom];
+              newZooms.forEach((zoom, idx) => {
+                if (currentZooms[idx]) {
+                  // 保持百分比位置
+                  if (currentZooms[idx].start !== undefined) {
+                    zoom.start = currentZooms[idx].start;
+                    zoom.end = currentZooms[idx].end;
+                    // 移除具体的数值范围，让百分比生效
+                    delete zoom.startValue;
+                    delete zoom.endValue;
+                  }
+                }
               });
             }
           }
         }
 
-        this.myChart.setOption(option, forceRefresh);
+        // 💡 核心优化：仅在类型切换或强制刷新时使用 notMerge = true
+        // 这样可以保持 periodic 刷新时的交互状态（如正在滑动的 scrollbar）
+        const isTypeChanged = this.lastChartType !== requestedType;
+        const notMerge = forceRefresh || isTypeChanged;
+
+        if (isTypeChanged && this.myChart) {
+          this.myChart.clear(); // 切换类型时彻底清空，防止图形重合
+        }
+
+        this.myChart.setOption(option, notMerge);
+
         this.lastOption = option;
+        this.lastChartType = requestedType;
       } catch (error) {
         console.error(`❌ 更新图表失败: ${this.chartType}`, error);
         if (!this.lastOption || forceRefresh) {
@@ -129,22 +174,7 @@ export default {
       }
     },
 
-    async getAssetComparisonOption(accountId) {
-      // 这里的逻辑参考数据展示模块，获取真实账户持仓数据
-      const data = await fetchAccountInfo();
-      if (!data || !data.accounts || data.accounts.length === 0) {
-        throw new Error('未获取到有效账户数据');
-      }
-
-      let targetAccount = null;
-      if (accountId) {
-        targetAccount = data.accounts.find(acc => acc.account_id === accountId);
-      }
-      if (!targetAccount) {
-        targetAccount = data.accounts[0];
-        this.currentAccountId = targetAccount.account_id;
-      }
-
+    async processAssetOption(targetAccount) {
       const positions = targetAccount.positions || [];
       if (positions.length === 0) {
         return this.getEmptyChartOption('该账户目前没有持仓数据');
@@ -285,8 +315,7 @@ export default {
       };
     },
 
-    async getTimeComparisonOption(accountId) {
-      const data = await fetchYearlyComparisonData(accountId);
+    async processTimeOption(data) {
       const yearlyData = data.yearly_data || [];
       if (yearlyData.length === 0) return this.getEmptyChartOption('暂无年度对比历史数据');
 
@@ -295,29 +324,102 @@ export default {
       const returnRates = yearlyData.map(item => item.returnRate || 0);
 
       return {
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['总资产', '回报率'], textStyle: { color: '#ffffff' }, bottom: '0' },
-        grid: { left: '50', right: '50', bottom: '60', containLabel: true },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: 'rgba(26, 31, 58, 0.95)',
+          borderColor: 'rgba(64, 224, 255, 0.3)',
+          textStyle: { color: '#ffffff' },
+          formatter: (params) => {
+            if (!params || params.length === 0) return '';
+            let res = `${params[0].name}<br/>`;
+            params.forEach(p => {
+              if (p.seriesName === '总资产') {
+                res += `${p.marker} ${p.seriesName}: ${Number(p.value).toLocaleString()} 元<br/>`;
+              } else {
+                res += `${p.marker} ${p.seriesName}: ${p.value}%<br/>`;
+              }
+            });
+            return res;
+          }
+        },
+        legend: {
+          data: ['总资产', '回报率'],
+          textStyle: { color: '#ffffff', fontSize: 12 },
+          bottom: '10'
+        },
+        grid: {
+          left: '80',
+          right: '80',
+          bottom: '60',
+          top: '60',
+          containLabel: true
+        },
         xAxis: {
           type: 'category',
-          show: true,
           data: years,
-          axisLabel: { color: '#ffffff' },
-          axisLine: { lineStyle: { color: 'rgba(64, 224, 255, 0.3)' } }
+          axisLabel: { color: '#ffffff', fontSize: 11 },
+          axisLine: { lineStyle: { color: 'rgba(64, 224, 255, 0.3)' } },
+          axisTick: { show: false }
         },
         yAxis: [
-          { type: 'value', name: '总资产', axisLabel: { color: '#ffffff' }, axisLine: { show: true, lineStyle: { color: 'rgba(64, 224, 255, 0.3)' } } },
-          { type: 'value', name: '回报率(%)', position: 'right', axisLabel: { color: '#ffffff', formatter: '{value}%' }, axisLine: { show: true, lineStyle: { color: '#ff6b6b' } } }
+          {
+            type: 'value',
+            name: '总资产(元)',
+            nameTextStyle: { color: '#ffffff', fontSize: 11, padding: [0, 0, 10, 0] },
+            axisLabel: {
+              color: '#ffffff',
+              fontSize: 10,
+              formatter: (value) => value >= 10000 ? (value / 10000).toFixed(1) + '万' : value
+            },
+            axisLine: { show: true, lineStyle: { color: 'rgba(64, 224, 255, 0.3)' } },
+            splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } }
+          },
+          {
+            type: 'value',
+            name: '回报率(%)',
+            nameTextStyle: { color: '#ffffff', fontSize: 11, padding: [0, 0, 10, 0] },
+            position: 'right',
+            axisLabel: { color: '#ffffff', fontSize: 10, formatter: '{value}%' },
+            axisLine: { show: true, lineStyle: { color: '#ff6b6b' } },
+            splitLine: { show: false }
+          }
         ],
         series: [
-          { name: '总资产', type: 'bar', data: totalAssets, itemStyle: { color: '#40e0ff' } },
-          { name: '回报率', type: 'line', data: returnRates, yAxisIndex: 1, itemStyle: { color: '#ff6b6b' } }
+          {
+            name: '总资产',
+            type: 'bar',
+            data: totalAssets,
+            barMaxWidth: 35,
+            itemStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#40e0ff' },
+                { offset: 1, color: 'rgba(64, 224, 255, 0.2)' }
+              ]),
+              borderRadius: [4, 4, 0, 0]
+            }
+          },
+          {
+            name: '回报率',
+            type: 'line',
+            data: returnRates,
+            yAxisIndex: 1,
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 8,
+            itemStyle: { color: '#ff6b6b' },
+            lineStyle: { width: 3, color: '#ff6b6b' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255, 107, 107, 0.3)' },
+                { offset: 1, color: 'transparent' }
+              ])
+            }
+          }
         ]
       };
     },
 
-    async getRegionComparisonOption(accountId) {
-      const data = await fetchAreaComparison(accountId);
+    async processRegionOption(data) {
       const regionData = data.region_data || [];
       if (regionData.length === 0) return this.getEmptyChartOption('该账户暂无地区分布数据');
 

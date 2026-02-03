@@ -109,7 +109,7 @@
               <div class="status-indicator"></div>
             </div>
             <div class="panel-content">
-              <RiskWarning :warnings="riskWarnings" />
+              <RiskWarning ref="riskWarning" :warnings="riskWarnings" />
             </div>
           </div>
         </div>
@@ -131,6 +131,8 @@ import RiskThreshold from '@/components/comparison/RiskThreshold.vue';
 import ComparisonTable from '@/components/comparison/ComparisonTable.vue';
 import RiskWarning from '@/components/comparison/RiskWarning.vue';
 import { fetchRiskAssessment } from '@/api/riskThresholdApi.js';
+import { fetchYearlyComparisonData, fetchAreaComparison } from '@/api/comparisonModuleApi.js';
+import { fetchAccountInfo } from '@/api/accountApi.js';
 
 export default {
   name: 'ComparisonPage',
@@ -144,6 +146,7 @@ export default {
     return {
       activeMenu: 'asset',
       riskThresholdData: [],
+      sharedData: null,
       refreshTimer: null,
       riskWarnings: [
         {
@@ -187,30 +190,62 @@ export default {
     },
 
     async refreshAllData() {
-      // 刷新风险阈值
-      this.loadRiskThresholdData();
-
       // 获取表格当前选中的账户ID
-      let currentAccountId = null;
+      let currentAccountId = '62283925';
       if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
         currentAccountId = this.$refs.comparisonTable.selectedAccount;
       }
 
-      // 刷新图表 (传入账户ID)
-      if (this.$refs.comparisonChart && typeof this.$refs.comparisonChart.updateChart === 'function') {
-        this.$refs.comparisonChart.updateChart(currentAccountId);
-      }
+      // 1. 刷新风险阈值
+      this.loadRiskThresholdData(currentAccountId);
 
-      // 刷新表格
-      if (this.$refs.comparisonTable && typeof this.$refs.comparisonTable.refreshData === 'function') {
-        this.$refs.comparisonTable.refreshData();
+      // 2. 获取业务数据 (根据当前选中的菜单类型)
+      try {
+        let data = null;
+        if (this.activeMenu === 'asset') {
+          const accountData = await fetchAccountInfo();
+          if (accountData && accountData.accounts) {
+             const acc = accountData.accounts.find(a => a.account_id === currentAccountId) || accountData.accounts[0];
+             // 💡 关键：在 Page 层统一计算好 asset_ratio，确保图表和表格拿到的数据完全一致
+             const totalMV = acc.positions ? acc.positions.reduce((sum, p) => sum + Number(p.market_value), 0) : 0;
+             if (acc.positions) {
+               acc.positions.forEach(p => {
+                 p.asset_ratio = totalMV > 0 ? ((Number(p.market_value) / totalMV) * 100).toFixed(2) : '0.00';
+               });
+             }
+             data = { type: 'asset', ...acc };
+          }
+        } else if (this.activeMenu === 'time') {
+          const yearlyData = await fetchYearlyComparisonData(currentAccountId);
+          data = { type: 'time', ...yearlyData };
+        } else if (this.activeMenu === 'region') {
+          const areaData = await fetchAreaComparison(currentAccountId);
+          data = { type: 'region', ...areaData };
+        }
+
+        if (data) {
+          this.sharedData = data;
+
+          // 3. 同步分发数据给子组件
+          if (this.$refs.comparisonChart) {
+            this.$refs.comparisonChart.setData(data, currentAccountId);
+          }
+          if (this.$refs.comparisonTable) {
+            this.$refs.comparisonTable.setData(data, currentAccountId);
+          }
+          if (this.$refs.riskWarning && this.activeMenu === 'asset') {
+            this.$refs.riskWarning.loadMarketCapData(currentAccountId);
+          }
+        }
+      } catch (error) {
+        console.error('❌ 统一数据获取失败:', error);
       }
     },
 
-    async loadRiskThresholdData() {
+    async loadRiskThresholdData(accountId = '62283925') {
       try {
         console.log('📡 开始请求风险阈值数据...');
-        const data = await fetchRiskAssessment('DEMO000001', 30);
+        const data = await fetchRiskAssessment(accountId, 30);
         console.log('✅ 风险阈值数据返回:', data);
 
         // 兼容两种数据格式
@@ -225,7 +260,12 @@ export default {
     },
 
     setActiveMenu(menu) {
+      if (this.activeMenu === menu) return;
       this.activeMenu = menu;
+      // 切换菜单时立即刷新一次，确保图表和表格同步切换
+      this.$nextTick(() => {
+        this.refreshAllData();
+      });
     },
     getChartType() {
       return this.activeMenu; // 根据选中的菜单返回图表类型

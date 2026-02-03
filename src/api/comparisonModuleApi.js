@@ -76,4 +76,3 @@ export async function fetchAreaComparison(accountId = ACCOUNT_ID) {
     throw error;
   }
 }
-

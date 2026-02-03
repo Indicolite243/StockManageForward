@@ -41,8 +41,26 @@
         </div>
       </div>
 
+      <div class="industry-distribution">
+        <div class="distribution-title">行业分布详情</div>
+        <div class="industry-list">
+          <div v-for="item in industryData" :key="item.name" class="industry-item">
+            <div class="industry-info">
+              <span class="industry-name">{{ item.name }}</span>
+              <span class="industry-value">{{ item.value.toFixed(2) }}%</span>
+            </div>
+            <el-progress
+              :percentage="item.value"
+              :stroke-width="8"
+              :show-text="false"
+              :color="getIndustryColor(item.name)"
+            />
+          </div>
+        </div>
+      </div>
+
       <div class="market-cap-stats">
-        <div class="stats-title">业绩归因板块</div>
+        <div class="stats-title">业绩归因板块 (市值)</div>
         <div class="stats-grid">
           <div class="stat-item small">
             <div class="stat-icon"></div>
@@ -101,6 +119,7 @@ export default {
       currentTime: '',
       timer: null,
       marketCapData: [],
+      industryData: [],
       marketCapSummary: { small: 0, medium: 0, large: 0, total: 0 },
       loading: false
     };
@@ -108,7 +127,7 @@ export default {
   async mounted() {
     this.updateTime();
     this.timer = setInterval(this.updateTime, 1000);
-    
+
     // 加载市值分布数据
     await this.loadMarketCapData();
   },
@@ -118,18 +137,27 @@ export default {
     }
   },
   methods: {
-    async loadMarketCapData() {
+    async loadMarketCapData(accountId = '62283925') {
       this.loading = true;
       try {
         console.log('📡 开始加载市值分布数据...');
-        const data = await fetchMarketCapData();
+        const data = await fetchMarketCapData(accountId);
         console.log('✅ 市值分布数据:', data);
-        
+
         // 兼容新旧数据格式
         if (data.stocks && data.summary) {
           // 新格式：包含 stocks 和 summary
           this.marketCapData = data.stocks;
           this.marketCapSummary = data.summary;
+          // 💡 注入行业数据
+          if (data.industries) {
+            // 计算各行业百分比
+            const totalMV = data.industries.reduce((sum, i) => sum + i.marketValue, 0);
+            this.industryData = data.industries.map(i => ({
+              name: i.name,
+              value: totalMV > 0 ? (i.marketValue / totalMV) * 100 : 0
+            }));
+          }
         } else if (Array.isArray(data)) {
           // 旧格式：直接是数组
           this.marketCapData = data;
@@ -148,7 +176,7 @@ export default {
         this.loading = false;
       }
     },
-    
+
     updateTime() {
       const now = new Date();
       this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
@@ -169,10 +197,10 @@ export default {
       return `共${total}只股票：小市值${small}只，中市值${medium}只，大市值${large}只`;
     },
 
-    // 使用 API 层返回的 category，如果没有则兼容旧数据格式
+    // 使用 API 层返回的 category，如果没有则根据市值分类
     getStockCategory(stock) {
-      // 优先使用 API 层返回的 category
-      if (stock.category) {
+      // 优先使用 API 层返回的 category (small/medium/large)
+      if (['small', 'medium', 'large'].includes(stock.category)) {
         return stock.category;
       }
       // 兼容旧格式：根据 marketCap 计算
@@ -312,7 +340,13 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 隐藏滚动条但保持功能 (可选) */
+.warning-content::-webkit-scrollbar {
+  width: 4px;
 }
 
 .market-cap-overview {
@@ -333,7 +367,7 @@ export default {
 }
 
 .market-cap-list {
-  flex: 1;
+  max-height: 200px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -413,6 +447,54 @@ export default {
 }
 
 
+
+.industry-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(64, 224, 255, 0.1);
+  border-radius: 8px;
+}
+
+.distribution-title {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.industry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.industry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.industry-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.industry-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.industry-value {
+  color: #40e0ff;
+  font-weight: bold;
+}
+
+:deep(.el-progress-bar__outer) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
 
 .stock-details {
   flex: 1;

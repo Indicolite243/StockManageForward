@@ -1,5 +1,5 @@
 <template>
-  <div class="comparison-table" v-loading="loading && assetTableData.length === 0">
+  <div class="comparison-table" v-loading="loading && tableData.length === 0">
     <div class="table-header">
       <div class="table-title">{{ getTableTitle() }}</div>
 
@@ -36,7 +36,7 @@
     <div class="table-content">
       <el-table
         :data="tableData"
-        row-key="stock_code"
+        :row-key="getRowKey"
         style="width: 100%"
         height="100%"
         :header-cell-style="headerCellStyle"
@@ -105,11 +105,8 @@ export default {
     this.loadAccounts();
   },
   mounted() {
-    // 启动 3 秒定时刷新，与图表同步
-    this.startPolling();
   },
   beforeUnmount() {
-    this.stopPolling();
   },
   computed: {
     tableData() {
@@ -148,8 +145,8 @@ export default {
           return [
             { prop: 'region', label: '地区', minWidth: '120' },
             { prop: 'totalAssets', label: '总资产(元)', minWidth: '150', formatter: this.formatNumber },
-            { prop: 'returnRate', label: '回报率', minWidth: '100' },
-            { prop: 'investmentRate', label: '投资占比', minWidth: '120' }
+            { prop: 'returnRate', label: '回报率(%)', minWidth: '100', formatter: this.formatPercent },
+            { prop: 'investmentRate', label: '投资占比(%)', minWidth: '120', formatter: this.formatPercent }
           ];
         default:
           return [];
@@ -166,19 +163,58 @@ export default {
     }
   },
   methods: {
-    startPolling() {
-      this.timer = setInterval(() => {
-        if (this.tableType === 'asset') {
-          this.loadAssetData(false);
-        }
-      }, 3000);
+    /**
+     * 设置外部传入的数据，加速渲染并确保同步
+     */
+    setData(data, accountId) {
+      this.selectedAccount = accountId;
+      this.renderTableData(data);
     },
 
-    stopPolling() {
-      if (this.timer) {
-        clearInterval(this.timer);
-        this.timer = null;
+    renderTableData(data) {
+      if (!data) return;
+      const type = data.type || this.tableType;
+
+      switch (type) {
+        case 'asset':
+          this.processAssetData(data);
+          break;
+        case 'time':
+          this.timeTableData = data.yearly_data || [];
+          break;
+        case 'region':
+          this.regionTableData = data.region_data || [];
+          break;
       }
+    },
+
+    processAssetData(account) {
+      const positions = account.positions || [];
+      // 💡 关键：确保与图表使用相同的计算口径 (所有持仓市值之和)
+      const totalMarketValue = positions.reduce((sum, p) => sum + Number(p.market_value), 0);
+
+      const processedData = positions.map(pos => {
+        const currentPrice = Number(pos.lastPrice) || Number(pos.open_price) || 0;
+        const costPrice = Number(pos.avg_price) || 0;
+        const marketValue = Number(pos.market_value) || 0;
+
+        // 💡 确保计算逻辑完全一致
+        const assetRatio = totalMarketValue > 0 ? (marketValue / totalMarketValue * 100) : 0;
+        const profitLossRate = costPrice > 0 ? ((currentPrice - costPrice) / costPrice * 100) : 0;
+
+        return {
+          stock_code: pos.stock_code,
+          stock_name: pos.stock_name,
+          current_price: currentPrice.toFixed(2),
+          volume: Number(pos.volume),
+          market_value: marketValue.toFixed(2),
+          asset_ratio: assetRatio.toFixed(2), // toFixed(2) 保持显示一致
+          daily_return: profitLossRate.toFixed(2)
+        };
+      });
+
+      processedData.sort((a, b) => b.market_value - a.market_value);
+      this.assetTableData = processedData;
     },
 
     async loadAccounts() {
@@ -203,23 +239,19 @@ export default {
     },
 
     handleAccountChange() {
-      this.loadTableData(this.tableType, true);
+      // 切换账户时仅通知父组件，由父组件触发 setData 更新
       this.$emit('account-changed', this.selectedAccount);
     },
 
     async loadTableData(type, showLoading = true) {
-      if (!this.selectedAccount && type === 'asset') {
-        // 如果是资产对比但没选账户，先加载账户
-        await this.loadAccounts();
-        return;
-      }
-
+      // 为了兼容旧逻辑和提供即时反馈，保留此方法
+      if (!this.selectedAccount) return;
       if (showLoading) this.loading = true;
 
       try {
         switch (type) {
           case 'asset':
-            await this.loadAssetData(false); // loadTableData 已经处理了 loading
+            await this.loadAssetData(false);
             break;
           case 'time':
             await this.loadTimeData();
@@ -257,29 +289,8 @@ export default {
           return;
         }
 
-        const positions = account.positions || [];
-        const totalMarketValue = Number(account.market_value) || positions.reduce((sum, p) => sum + Number(p.market_value), 0);
-
-        const processedData = positions.map(pos => {
-          const currentPrice = Number(pos.open_price) || 0;
-          const costPrice = Number(pos.avg_price) || 0;
-          const marketValue = Number(pos.market_value) || 0;
-          const assetRatio = totalMarketValue > 0 ? (marketValue / totalMarketValue * 100) : 0;
-          const profitLossRate = costPrice > 0 ? ((currentPrice - costPrice) / costPrice * 100) : 0;
-
-          return {
-            stock_code: pos.stock_code,
-            stock_name: pos.stock_name,
-            current_price: currentPrice,
-            volume: Number(pos.volume),
-            market_value: marketValue,
-            asset_ratio: assetRatio.toFixed(2),
-            daily_return: profitLossRate.toFixed(2)
-          };
-        });
-
-        processedData.sort((a, b) => b.market_value - a.market_value);
-        this.assetTableData = processedData;
+        // 💡 渲染逻辑
+        this.processAssetData(account);
 
       } catch (error) {
         console.error('❌ 获取资产对比表格数据失败:', error);
@@ -317,12 +328,23 @@ export default {
 
     formatNumber(row, column, cellValue) {
       if (cellValue === null || cellValue === undefined || cellValue === '') return '-';
-      return Number(cellValue).toLocaleString();
+      const num = Number(cellValue);
+      // 如果是总资产等大额数字，保留0位或2位小数
+      return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     },
 
     formatPercent(row, column, cellValue) {
       if (cellValue === null || cellValue === undefined || cellValue === '') return '-';
-      return `${cellValue}%`;
+      // 统一保留两位小数并加百分号
+      const num = typeof cellValue === 'string' && cellValue.includes('%')
+        ? parseFloat(cellValue)
+        : Number(cellValue);
+      return `${num.toFixed(2)}%`;
+    },
+
+    getRowKey(row) {
+      // 根据不同表格类型返回唯一标识，确保刷新时局部更新而非重绘
+      return row.stock_code || row.region || row.year || row.timePeriod || Math.random();
     },
 
     getTrendClass(trend) {
@@ -381,6 +403,38 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* 💡 强制深度覆盖 Element Plus 样式以确保在深色背景下清晰可见 */
+.comparison-table :deep(.el-table) {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+.comparison-table :deep(.el-table__body tr),
+.comparison-table :deep(.el-table__header tr) {
+  background-color: transparent !important;
+}
+
+.comparison-table :deep(.el-table__body td) {
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.comparison-table :deep(.el-table__header th) {
+  color: #40e0ff !important;
+  background-color: rgba(64, 224, 255, 0.05) !important;
+  border-bottom: 1px solid rgba(64, 224, 255, 0.2) !important;
+}
+
+/* 斑马纹效果 */
+.comparison-table :deep(.el-table--striped .el-table__row--striped td) {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* 悬停效果 */
+.comparison-table :deep(.el-table__body tr:hover > td) {
+  background-color: rgba(64, 224, 255, 0.1) !important;
 }
 
 .table-header {
