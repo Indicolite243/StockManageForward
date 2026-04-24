@@ -81,7 +81,7 @@ export default {
       // 统计状态为 'warning' 的指标数量
       return this.data.filter(item => item.status === 'warning').length;
     },
-    
+
     getDangerCount() {
       // 统计状态为 'danger' 的指标数量
       return this.data.filter(item => item.status === 'danger').length;

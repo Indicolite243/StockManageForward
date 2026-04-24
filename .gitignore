@@ -28,3 +28,10 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Local reports and test artifacts
+ETF_strategy_report_*.md
+ETF_strategy_trades_*.xlsx
+strategy_performance.json
+test_*.py
+check_price.py

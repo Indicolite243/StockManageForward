@@ -28,7 +28,7 @@
             @click="setActiveMenu('time')"
           >
             <div class="menu-icon time-icon"></div>
-            <span>时间段对</span>
+            <span>时间段对比</span>
           </div>
 
           <div
@@ -52,7 +52,7 @@
               <div class="header-line"></div>
               <h4 class="panel-title">
                 <i class="title-icon chart-icon"></i>
-                图
+                数据可视化
               </h4>
               <div class="status-indicator"></div>
             </div>
@@ -85,7 +85,7 @@
               <div class="header-line"></div>
               <h4 class="panel-title">
                 <i class="title-icon table-icon"></i>
-                表
+                数据详情
               </h4>
               <div class="status-indicator"></div>
             </div>
@@ -94,6 +94,7 @@
                 ref="comparisonTable"
                 :table-type="getTableType()"
                 @account-changed="handleAccountChange"
+                @refresh="refreshAllData"
               />
             </div>
           </div>
@@ -131,8 +132,7 @@ import RiskThreshold from '@/components/comparison/RiskThreshold.vue';
 import ComparisonTable from '@/components/comparison/ComparisonTable.vue';
 import RiskWarning from '@/components/comparison/RiskWarning.vue';
 import { fetchRiskAssessment } from '@/api/riskThresholdApi.js';
-import { fetchYearlyComparisonData, fetchAreaComparison } from '@/api/comparisonModuleApi.js';
-import { fetchAccountInfo } from '@/api/accountApi.js';
+import { fetchAssetComparison, fetchYearlyComparisonData, fetchAreaComparison } from '@/api/comparisonModuleApi.js';
 
 export default {
   name: 'ComparisonPage',
@@ -146,27 +146,21 @@ export default {
     return {
       activeMenu: 'asset',
       riskThresholdData: [],
-      sharedData: null,
       refreshTimer: null,
       riskWarnings: [
         {
-          level: 'low',
-          message: '市场波动率略高',
-          time: '2025-01-25 14:30',
-          action: '建议适当降低仓位'
-        },
-        {
           level: 'normal',
           message: '系统运行正常',
-          time: '2025-01-25 12:00',
+          time: new Date().toLocaleString(),
           action: '继续监控'
         }
       ]
     };
   },
   async mounted() {
-    console.log('🚀 ComparisonPage mounted - 开始加载数据');
+    console.log('🚀 [ComparisonPage] mounted');
     await this.loadRiskThresholdData();
+    this.refreshAllData();
     this.startRefreshTimer();
   },
   beforeUnmount() {
@@ -175,7 +169,6 @@ export default {
   methods: {
     startRefreshTimer() {
       if (this.refreshTimer) return;
-      console.log('⏱️ 启动自动刷新定时器');
       this.refreshTimer = setInterval(() => {
         this.refreshAllData();
       }, 3000);
@@ -183,78 +176,63 @@ export default {
 
     stopRefreshTimer() {
       if (this.refreshTimer) {
-        console.log('🛑 停止自动刷新定时器');
         clearInterval(this.refreshTimer);
         this.refreshTimer = null;
       }
     },
 
+    /**
+     * 统一刷新所有数据
+     * 实现“单一来源”分发，确保图表、表格数据严格同步
+     */
     async refreshAllData() {
-      // 获取表格当前选中的账户ID
       let currentAccountId = '62283925';
       if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
         currentAccountId = this.$refs.comparisonTable.selectedAccount;
       }
 
-      // 1. 刷新风险阈值
-      this.loadRiskThresholdData(currentAccountId);
+      const type = this.activeMenu;
+      console.log(`🔄 [ComparisonPage] 刷新数据 - 类型: ${type}, 账户: ${currentAccountId}`);
 
-      // 2. 获取业务数据 (根据当前选中的菜单类型)
       try {
-        let data = null;
-        if (this.activeMenu === 'asset') {
-          const accountData = await fetchAccountInfo();
-          if (accountData && accountData.accounts) {
-             const acc = accountData.accounts.find(a => a.account_id === currentAccountId) || accountData.accounts[0];
-             // 💡 关键：在 Page 层统一计算好 asset_ratio，确保图表和表格拿到的数据完全一致
-             const totalMV = acc.positions ? acc.positions.reduce((sum, p) => sum + Number(p.market_value), 0) : 0;
-             if (acc.positions) {
-               acc.positions.forEach(p => {
-                 p.asset_ratio = totalMV > 0 ? ((Number(p.market_value) / totalMV) * 100).toFixed(2) : '0.00';
-               });
-             }
-             data = { type: 'asset', ...acc };
-          }
-        } else if (this.activeMenu === 'time') {
-          const yearlyData = await fetchYearlyComparisonData(currentAccountId);
-          data = { type: 'time', ...yearlyData };
-        } else if (this.activeMenu === 'region') {
-          const areaData = await fetchAreaComparison(currentAccountId);
-          data = { type: 'region', ...areaData };
+        let rawData = null;
+        if (type === 'asset') {
+          // 使用专门的资产对比接口，获取包含占比、盈亏率等丰富字段的数据
+          rawData = await fetchAssetComparison(currentAccountId);
+        } else if (type === 'time') {
+          rawData = await fetchYearlyComparisonData(currentAccountId);
+        } else if (type === 'region') {
+          rawData = await fetchAreaComparison(currentAccountId);
         }
 
-        if (data) {
-          this.sharedData = data;
+        if (!rawData) return;
 
-          // 3. 同步分发数据给子组件
-          if (this.$refs.comparisonChart) {
-            this.$refs.comparisonChart.setData(data, currentAccountId);
-          }
-          if (this.$refs.comparisonTable) {
-            this.$refs.comparisonTable.setData(data, currentAccountId);
-          }
-          if (this.$refs.riskWarning && this.activeMenu === 'asset') {
-            this.$refs.riskWarning.loadMarketCapData(currentAccountId);
-          }
+        // 1. 分发数据给图表
+        if (this.$refs.comparisonChart && typeof this.$refs.comparisonChart.setData === 'function') {
+          this.$refs.comparisonChart.setData(rawData, currentAccountId);
         }
+
+        // 2. 分发数据给表格
+        if (this.$refs.comparisonTable && typeof this.$refs.comparisonTable.setData === 'function') {
+          this.$refs.comparisonTable.setData(rawData);
+        }
+
+        // 3. 更新归因分析模块
+        if (type === 'asset' && this.$refs.riskWarning && typeof this.$refs.riskWarning.setData === 'function') {
+          this.$refs.riskWarning.setData(rawData);
+        }
+
       } catch (error) {
-        console.error('❌ 统一数据获取失败:', error);
+        console.error(`❌ [ComparisonPage] 刷新失败:`, error);
       }
     },
 
     async loadRiskThresholdData(accountId = '62283925') {
       try {
-        console.log('📡 开始请求风险阈值数据...');
         const data = await fetchRiskAssessment(accountId, 30);
-        console.log('✅ 风险阈值数据返回:', data);
-
-        // 兼容两种数据格式
         this.riskThresholdData = data.risk_indicators || data.indicators || [];
-
-        console.log('📊 风险阈值赋值后:', this.riskThresholdData);
       } catch (error) {
-        console.error('❌ 获取风险阈值数据失败:', error);
-        // 不显示数据
+        console.error('❌ 获取风险阈值失败:', error);
         this.riskThresholdData = [];
       }
     },
@@ -262,23 +240,18 @@ export default {
     setActiveMenu(menu) {
       if (this.activeMenu === menu) return;
       this.activeMenu = menu;
-      // 切换菜单时立即刷新一次，确保图表和表格同步切换
       this.$nextTick(() => {
         this.refreshAllData();
       });
     },
-    getChartType() {
-      return this.activeMenu; // 根据选中的菜单返回图表类型
-    },
-    getTableType() {
-      return this.activeMenu; // 根据选中的菜单返回表格类型
-    },
+
+    getChartType() { return this.activeMenu; },
+    getTableType() { return this.activeMenu; },
+
     handleAccountChange(accountId) {
-      console.log('ComparisonPage received account change:', accountId);
-      // 当表格中的账户改变时，更新图表
-      if (this.$refs.comparisonChart && typeof this.$refs.comparisonChart.updateChart === 'function') {
-        this.$refs.comparisonChart.updateChart(accountId);
-      }
+      console.log('👤 [ComparisonPage] 账户切换:', accountId);
+      this.refreshAllData();
+      this.loadRiskThresholdData(accountId);
     }
   }
 };
@@ -295,7 +268,6 @@ export default {
   z-index: 2;
 }
 
-/* 网格背景装饰 */
 .grid-background {
   position: absolute;
   top: 0;
@@ -315,7 +287,6 @@ export default {
   100% { transform: translate(50px, 50px); }
 }
 
-/* 主要内容包装器 */
 .content-wrapper {
   position: relative;
   width: 100%;
@@ -325,47 +296,17 @@ export default {
   z-index: 3;
 }
 
-/* 玻璃态面板样式 */
 .glass-panel {
   position: relative;
   background: rgba(12, 20, 38, 0.4);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(64, 224, 255, 0.3);
   border-radius: 12px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    0 0 40px rgba(64, 224, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   overflow: hidden;
-  transition: all 0.5s ease;
-  animation: panelGlow 4s ease-in-out infinite alternate;
+  transition: all 0.3s ease;
 }
 
-.glass-panel:hover {
-  border-color: rgba(64, 224, 255, 0.6);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    0 0 60px rgba(64, 224, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
-@keyframes panelGlow {
-  0% {
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.3),
-      0 0 40px rgba(64, 224, 255, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  }
-  100% {
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.3),
-      0 0 60px rgba(64, 224, 255, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-}
-
-/* 左侧导航栏 */
 .left-sidebar {
   width: 180px;
   min-width: 180px;
@@ -375,9 +316,7 @@ export default {
 
 .sidebar-header {
   padding: 15px;
-  background: linear-gradient(135deg,
-    rgba(64, 224, 255, 0.1) 0%,
-    rgba(30, 144, 255, 0.05) 100%);
+  background: rgba(64, 224, 255, 0.1);
   border-bottom: 1px solid rgba(64, 224, 255, 0.2);
   display: flex;
   align-items: center;
@@ -389,7 +328,6 @@ export default {
   height: 16px;
   background: linear-gradient(180deg, #40e0ff, #1e90ff);
   border-radius: 2px;
-  box-shadow: 0 0 8px rgba(64, 224, 255, 0.8);
 }
 
 .sidebar-title {
@@ -397,7 +335,6 @@ export default {
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
-  text-shadow: 0 0 8px rgba(64, 224, 255, 0.5);
 }
 
 .sidebar-menu {
@@ -423,41 +360,24 @@ export default {
 .menu-item:hover {
   background: rgba(64, 224, 255, 0.1);
   color: #ffffff;
-  transform: translateX(3px);
 }
 
 .menu-item.active {
   background: rgba(64, 224, 255, 0.2);
   color: #40e0ff;
   border: 1px solid rgba(64, 224, 255, 0.3);
-  box-shadow: 0 0 15px rgba(64, 224, 255, 0.2);
 }
 
 .menu-icon {
   width: 12px;
   height: 12px;
   border-radius: 2px;
-  transition: all 0.3s ease;
 }
 
-.asset-icon {
-  background: linear-gradient(135deg, #40e0ff, #1e90ff);
-}
+.asset-icon { background: linear-gradient(135deg, #40e0ff, #1e90ff); }
+.time-icon { background: linear-gradient(135deg, #feca57, #ff9ff3); }
+.region-icon { background: linear-gradient(135deg, #48dbfb, #0abde3); }
 
-.time-icon {
-  background: linear-gradient(135deg, #feca57, #ff9ff3);
-}
-
-.region-icon {
-  background: linear-gradient(135deg, #48dbfb, #0abde3);
-}
-
-.menu-item.active .menu-icon {
-  box-shadow: 0 0 10px rgba(64, 224, 255, 0.6);
-  transform: scale(1.1);
-}
-
-/* 主要内容区域 */
 .main-content {
   flex: 1;
   display: flex;
@@ -469,6 +389,7 @@ export default {
   flex: 1;
   display: flex;
   gap: 20px;
+  min-height: 0;
 }
 
 .content-panel {
@@ -478,12 +399,9 @@ export default {
   min-height: 0;
 }
 
-/* 面板头部 */
 .panel-header {
   padding: 12px 15px;
-  background: linear-gradient(135deg,
-    rgba(64, 224, 255, 0.1) 0%,
-    rgba(30, 144, 255, 0.05) 100%);
+  background: rgba(64, 224, 255, 0.1);
   border-bottom: 1px solid rgba(64, 224, 255, 0.2);
   display: flex;
   align-items: center;
@@ -500,36 +418,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  text-shadow: 0 0 8px rgba(64, 224, 255, 0.5);
-}
-
-.title-icon {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  box-shadow: 0 0 6px rgba(64, 224, 255, 0.6);
-  animation: iconPulse 2s ease-in-out infinite;
-}
-
-.chart-icon {
-  background: linear-gradient(135deg, #40e0ff, #1e90ff);
-}
-
-.threshold-icon {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-}
-
-.table-icon {
-  background: linear-gradient(135deg, #feca57, #ff9ff3);
-}
-
-.warning-icon {
-  background: linear-gradient(135deg, #ff9f43, #feca57);
-}
-
-@keyframes iconPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.1); }
 }
 
 .status-indicator {
@@ -537,18 +425,9 @@ export default {
   height: 8px;
   border-radius: 50%;
   background: #00ff88;
-  box-shadow:
-    0 0 8px #00ff88,
-    0 0 16px rgba(0, 255, 136, 0.5);
-  animation: statusBlink 2s ease-in-out infinite;
+  box-shadow: 0 0 8px #00ff88;
 }
 
-@keyframes statusBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-/* 面板内容 */
 .panel-content {
   flex: 1;
   padding: 15px;
@@ -556,7 +435,6 @@ export default {
   position: relative;
 }
 
-/* 浮动装饰元素 */
 .floating-decorations {
   position: absolute;
   top: 0;
@@ -570,80 +448,20 @@ export default {
 .decoration-orb {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(64, 224, 255, 0.3), transparent);
-  box-shadow: 0 0 30px rgba(64, 224, 255, 0.4);
+  background: radial-gradient(circle, rgba(64, 224, 255, 0.2), transparent);
   animation: orbFloat 8s ease-in-out infinite;
 }
 
-.orb-1 {
-  width: 80px;
-  height: 80px;
-  top: 10%;
-  right: 20%;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  width: 60px;
-  height: 60px;
-  bottom: 20%;
-  left: 15%;
-  animation-delay: 3s;
-}
-
-.orb-3 {
-  width: 70px;
-  height: 70px;
-  top: 60%;
-  right: 10%;
-  animation-delay: 6s;
-}
+.orb-1 { width: 80px; height: 80px; top: 10%; right: 20%; }
+.orb-2 { width: 60px; height: 60px; bottom: 20%; left: 15%; animation-delay: 3s; }
+.orb-3 { width: 70px; height: 70px; top: 60%; right: 10%; animation-delay: 6s; }
 
 @keyframes orbFloat {
   0%, 100% { transform: translateY(0px); opacity: 0.3; }
   50% { transform: translateY(-15px); opacity: 0.6; }
 }
 
-/* 响应式设计 */
 @media (max-width: 1200px) {
-  .left-sidebar {
-    width: 160px;
-    min-width: 160px;
-  }
-
-  .content-row {
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .content-panel {
-    min-height: 250px;
-  }
-}
-
-@media (max-width: 768px) {
-  .comparison-page {
-    padding: 10px;
-  }
-
-  .content-wrapper {
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .left-sidebar {
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-  }
-
-  .sidebar-menu {
-    flex-direction: row;
-    padding: 10px;
-  }
-
-  .main-content {
-    gap: 10px;
-  }
+  .content-row { flex-direction: column; }
 }
 </style>

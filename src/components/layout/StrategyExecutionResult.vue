@@ -1,126 +1,168 @@
 <template>
   <div class="strategy-result">
     <div class="title">策略执行结果</div>
+
     <div class="result-content">
       <ChartSection class="transaction-curve" />
 
       <div class="key-metrics">
         <div class="title">关键指标</div>
-        <div class="metrics-table">
-          <el-table :data="keyMetrics" border style="width: 100%">
-            <el-table-column prop="metricName" label="指标名称" />
-            <el-table-column prop="metricValue" label="指标值" />
-            <el-table-column prop="description" label="描述" />
-          </el-table>
-        </div>
+        <el-table
+          :data="keyMetrics"
+          border
+          style="width: 100%"
+          :header-cell-style="headerStyle"
+        >
+          <el-table-column prop="metricName" label="指标名称" />
+          <el-table-column prop="metricValue" label="指标值" />
+          <el-table-column prop="description" label="描述" />
+        </el-table>
       </div>
 
-      <el-button type="primary" @click="downloadReport" class="download-button">查看并下载执行报告</el-button>
+      <div class="execution-meta">
+        <div class="title">本次执行信息</div>
+        <el-table
+          :data="executionInfo"
+          border
+          style="width: 100%"
+          :header-cell-style="headerStyle"
+        >
+          <el-table-column prop="label" label="项目" width="180" />
+          <el-table-column prop="value" label="内容" />
+        </el-table>
+      </div>
+
+      <el-button type="primary" class="download-button" @click="downloadReport">
+        查看并下载执行报告
+      </el-button>
     </div>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import ChartSection from './ChartSection.vue';
+<script setup>
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import ChartSection from './ChartSection.vue'
 
-export default {
-  name: 'StrategyExecutionResult',
-  components: {
-    ChartSection,
-  },
-  setup() {
-    const keyMetrics = ref([]);
+const defaultMetrics = [
+  { metricName: '策略收益率', metricValue: '--', description: '当前策略累计收益率' },
+  { metricName: '基准收益率', metricValue: '--', description: '当前基准累计收益率' },
+  { metricName: '策略年化收益率', metricValue: '--', description: '策略年化投资回报率' },
+  { metricName: '基准年化收益率', metricValue: '--', description: '基准年化投资回报率' },
+  { metricName: '最大回撤', metricValue: '--', description: '历史最大回撤幅度' },
+  { metricName: '夏普比率', metricValue: '--', description: '风险调整后收益指标' }
+]
 
-    const fetchExecutionResult = async () => {
-      try {
-        const response = await axios.get('/api/execution-result');
-        keyMetrics.value = response.data.keyMetrics;
-      } catch (error) {
-        console.error('获取策略执行结果失败：', error);
-        // 使用模拟数据
-        keyMetrics.value = [
-          { 
-            metricName: '总收益率', 
-            metricValue: '+8.2%', 
-            description: '当前策略累计收益率' 
-          },
-          { 
-            metricName: '年化收益率', 
-            metricValue: '+12.5%', 
-            description: '年化投资回报率' 
-          },
-          { 
-            metricName: '最大回撤', 
-            metricValue: '-3.8%', 
-            description: '历史最大回撤幅度' 
-          },
-          { 
-            metricName: '夏普比率', 
-            metricValue: '1.85', 
-            description: '风险调整后收益指标' 
-          },
-          { 
-            metricName: '胜率', 
-            metricValue: '68.5%', 
-            description: '盈利交易占比' 
-          },
-          { 
-            metricName: '交易次数', 
-            metricValue: '127', 
-            description: '累计执行交易次数' 
-          }
-        ];
-      }
-    };
+const defaultExecutionInfo = [
+  { label: '请求编号', value: '--' },
+  { label: '上传文件', value: '待上传' },
+  { label: '请求引擎', value: '待选择' },
+  { label: '实际执行器', value: '待执行' },
+  { label: '策略格式', value: '--' },
+  { label: '解析引擎', value: '--' },
+  { label: '基准代码', value: '--' },
+  { label: '熊市保护', value: '--' },
+  { label: '滑点', value: '--' },
+  { label: '手续费率', value: '--' },
+  { label: '成交量限制比例', value: '--' },
+  { label: '报告路径', value: '待生成' },
+  { label: '交易明细路径', value: '待生成' }
+]
 
-    onMounted(() => {
-      // 直接使用模拟数据
-      keyMetrics.value = [
-        { 
-          metricName: '总收益率', 
-          metricValue: '+8.2%', 
-          description: '当前策略累计收益率' 
-        },
-        { 
-          metricName: '年化收益率', 
-          metricValue: '+12.5%', 
-          description: '年化投资回报率' 
-        },
-        { 
-          metricName: '最大回撤', 
-          metricValue: '-3.8%', 
-          description: '历史最大回撤幅度' 
-        },
-        { 
-          metricName: '夏普比率', 
-          metricValue: '1.85', 
-          description: '风险调整后收益指标' 
-        },
-        { 
-          metricName: '胜率', 
-          metricValue: '68.5%', 
-          description: '盈利交易占比' 
-        },
-        { 
-          metricName: '交易次数', 
-          metricValue: '127', 
-          description: '累计执行交易次数' 
-        }
-      ];
-    });
+const keyMetrics = ref([...defaultMetrics])
+const executionInfo = ref([...defaultExecutionInfo])
 
-    const downloadReport = () => {
-      console.log('下载策略执行报告');
-    };
+const metricMapping = [
+  ['策略收益率', 'total_return', '当前策略累计收益率'],
+  ['基准收益率', 'benchmark_return', '当前基准累计收益率'],
+  ['策略年化收益率', 'annual_return', '策略年化投资回报率'],
+  ['基准年化收益率', 'benchmark_annual_return', '基准年化投资回报率'],
+  ['最大回撤', 'max_drawdown', '历史最大回撤幅度'],
+  ['夏普比率', 'sharpe_ratio', '风险调整后收益指标'],
+  ['Sortino 比率', 'sortino_ratio', '仅考虑下行波动的风险收益指标'],
+  ['Alpha', 'alpha', '相对基准的超额收益能力'],
+  ['Beta', 'beta', '相对基准的波动敏感度'],
+  ['波动率', 'volatility', '策略收益年化波动率'],
+  ['跟踪误差', 'tracking_error', '策略相对基准的偏离程度'],
+  ['信息比率', 'information_ratio', '超额收益相对跟踪误差的比值'],
+  ['下行风险', 'downside_risk', '仅统计下行波动的风险尺度'],
+  ['胜率', 'win_rate', '正收益交易日占比'],
+  ['期末净值', 'final_net_value', '回测结束时组合总资产'],
+  ['成交笔数', 'trade_count', '回测期间总成交笔数'],
+  ['买入笔数', 'buy_trade_count', '回测期间买入成交笔数'],
+  ['卖出笔数', 'sell_trade_count', '回测期间卖出成交笔数'],
+  ['换手率', 'turnover_ratio', '累计成交金额相对初始资金的比值'],
+  ['总手续费', 'total_commission', '回测期间累计交易费用']
+]
 
-    return {
-      keyMetrics,
-      downloadReport,
-    };
-  },
-};
+function headerStyle() {
+  return {
+    backgroundColor: 'rgba(64, 224, 255, 0.2)',
+    color: '#000000',
+    fontWeight: 'bold',
+    padding: '8px 0',
+    textAlign: 'center',
+    borderBottom: '1px solid rgba(64, 224, 255, 0.3)'
+  }
+}
+
+function buildMetricRows(metrics = {}) {
+  const rows = metricMapping
+    .filter(([, key]) => key in metrics)
+    .map(([metricName, key, description]) => ({
+      metricName,
+      metricValue: metrics[key] ?? '--',
+      description
+    }))
+
+  return rows.length ? rows : [...defaultMetrics]
+}
+
+function buildExecutionInfo(meta = {}) {
+  const engineInfo = meta.engine_info || {}
+  const artifacts = meta.artifacts || {}
+  const rows = [
+    ['请求编号', meta.request_id],
+    ['上传文件', meta.uploaded_filename],
+    ['请求引擎', meta.requested_engine],
+    ['实际执行器', meta.executor_type],
+    ['策略格式', meta.strategy_format],
+    ['解析引擎', meta.resolved_engine],
+    ['基准代码', meta.benchmark_symbol],
+    ['熊市保护', meta.bear_protection_enabled ? '开启' : '关闭'],
+    ['滑点', engineInfo.slippage_perc],
+    ['手续费率', engineInfo.commission_rate],
+    ['成交量限制比例', engineInfo.volume_limit_ratio],
+    ['报告路径', artifacts.markdown_report],
+    ['交易明细路径', artifacts.trade_excel]
+  ]
+
+  const mappedRows = rows
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([label, value]) => ({
+      label,
+      value: String(value)
+    }))
+
+  return mappedRows.length ? mappedRows : [...defaultExecutionInfo]
+}
+
+function handleExecutionStarted(event) {
+  const payload = event.detail || {}
+  keyMetrics.value = buildMetricRows(payload.metrics || {})
+  executionInfo.value = buildExecutionInfo(payload.execution_meta || {})
+}
+
+function downloadReport() {
+  window.open('/api/download-strategy-report/', '_blank')
+}
+
+onMounted(() => {
+  window.addEventListener('strategy-execution-started', handleExecutionStarted)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('strategy-execution-started', handleExecutionStarted)
+})
 </script>
 
 <style scoped>
@@ -145,89 +187,44 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-top: 8px;
+  gap: 12px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(64, 224, 255, 0.2);
   border-radius: 6px;
-  font-size: 12px;
-  color: #000000;
-  overflow: hidden;
-}
-
-.transaction-curve {
-  flex: 2;
-  margin-bottom: 12px;
-  min-height: 300px;
-}
-
-.transaction-curve :deep(.chart-section) {
-  height: 100%;
-}
-
-.key-metrics {
-  flex: 1;
-  margin-bottom: 12px;
-  min-height: 150px;
-}
-
-.metrics-table {
-  margin-top: 8px;
-  height: calc(100% - 30px);
   overflow-y: auto;
 }
 
-.download-button {
-  margin-top: 12px;
-  align-self: flex-end;
-  padding: 4px 12px;
-  font-size: 12px;
+.transaction-curve {
+  min-height: 420px;
   flex-shrink: 0;
 }
 
-/* Element UI组件深色主题适配 */
-:deep(.el-table) {
-  background: transparent !important;
+.download-button {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(64, 224, 255, 0.32), rgba(30, 144, 255, 0.34)) !important;
+  color: #ffffff !important;
+}
+
+:deep(.el-table),
+:deep(.el-table__inner-wrapper),
+:deep(.el-table__header-wrapper),
+:deep(.el-table__body-wrapper),
+:deep(.el-table tr),
+:deep(.el-table td.el-table__cell) {
+  background-color: #ffffff !important;
   color: #000000 !important;
-  font-size: 12px;
 }
 
 :deep(.el-table th.el-table__cell) {
-  background: rgba(64, 224, 255, 0.2) !important;
+  background-color: rgba(64, 224, 255, 0.2) !important;
   color: #000000 !important;
   border-bottom: 1px solid rgba(64, 224, 255, 0.3) !important;
-  padding: 2px 0;
-  font-size: 12px;
   font-weight: bold !important;
 }
 
-:deep(.el-table td.el-table__cell) {
-  background: transparent !important;
-  color: #000000 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  padding: 2px 0;
-  font-size: 12px;
-}
-
-:deep(.el-table tr:hover td) {
-  background: rgba(64, 224, 255, 0.1) !important;
-}
-
-:deep(.el-button) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.3), rgba(30, 144, 255, 0.3)) !important;
-  border: 1px solid rgba(64, 224, 255, 0.5) !important;
-  color: #ffffff !important;
-  border-radius: 6px !important;
-  box-shadow: 0 0 15px rgba(64, 224, 255, 0.3) !important;
-  transition: all 0.3s ease !important;
-  text-shadow: 0 0 5px rgba(64, 224, 255, 0.5);
-}
-
-:deep(.el-button:hover) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.5), rgba(30, 144, 255, 0.5)) !important;
-  border-color: rgba(64, 224, 255, 0.8) !important;
-  box-shadow: 0 0 25px rgba(64, 224, 255, 0.6) !important;
-  transform: translateY(-2px);
+:deep(.el-table) {
+  font-size: 11px;
 }
 </style>

@@ -4,188 +4,264 @@
   </div>
 </template>
 
-<script>
-import * as echarts from 'echarts';
+<script setup>
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import * as echarts from 'echarts'
 
-export default {
-  name: 'ChartSection',
-  mounted() {
-    this.initChart();
-    // 添加窗口大小变化监听
-    window.addEventListener('resize', this.handleResize);
-  },
-  beforeUnmount() {
-    // 清理监听器
-    window.removeEventListener('resize', this.handleResize);
-    if (this.myChart) {
-      this.myChart.dispose();
-    }
-  },
-  methods: {
-    initChart() {
-      const chartDom = this.$refs.chartContainer;
-      this.myChart = echarts.init(chartDom);
+const chartContainer = ref(null)
+let chartInstance = null
 
-      const option = {
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'cross',
-            label: {
-              backgroundColor: '#6a7985',
-            },
-          },
-          backgroundColor: 'rgba(26, 31, 58, 0.95)',
-          borderColor: 'rgba(64, 224, 255, 0.3)',
-          textStyle: {
-            color: '#ffffff'
-          }
-        },
-        legend: {
-          data: ['基准收益', '策略收益', '超额收益'],
-          bottom: '5%',
-          textStyle: {
-            color: '#ffffff',
-            fontSize: 12
-          }
-        },
-        grid: {
-          left: '5%',
-          right: '5%',
-          bottom: '20%',
-          top: '10%',
-          containLabel: true,
-        },
-        xAxis: {
-          type: 'category',
-          data: this.generateXAxisData(),
-          axisLabel: {
-            interval: 'auto',
-            rotate: 30,
-            color: '#ffffff',
-            fontSize: 10
-          },
-          axisLine: {
-            lineStyle: {
-              color: 'rgba(64, 224, 255, 0.3)'
-            }
-          }
-        },
-        yAxis: {
-          type: 'value',
-          name: '收益走势(%)',
-          min: 0,
-          max: 350,
-          interval: 50,
-          axisLabel: {
-            formatter: '{value}%',
-            color: '#ffffff',
-            fontSize: 10
-          },
-          nameTextStyle: {
-            color: '#ffffff',
-            fontSize: 11
-          },
-          axisLine: {
-            lineStyle: {
-              color: 'rgba(64, 224, 255, 0.3)'
-            }
-          },
-          splitLine: {
-            lineStyle: {
-              color: 'rgba(64, 224, 255, 0.1)'
-            }
-          }
-        },
-        series: [
-          {
-            name: '基准收益',
-            type: 'line',
-            data: this.generateRandomData('基准收益'),
-            smooth: true,
-            itemStyle: {
-              color: '#00a2ae',
-            },
-            lineStyle: {
-              width: 2
-            },
-            symbol: 'circle',
-            symbolSize: 4
-          },
-          {
-            name: '策略收益',
-            type: 'line',
-            data: this.generateRandomData('策略收益'),
-            smooth: true,
-            itemStyle: {
-              color: '#ff7c57',
-            },
-            lineStyle: {
-              width: 2
-            },
-            symbol: 'circle',
-            symbolSize: 4
-          },
-          {
-            name: '超额收益',
-            type: 'line',
-            data: this.generateRandomData('超额收益'),
-            smooth: true,
-            itemStyle: {
-              color: '#00e191',
-            },
-            lineStyle: {
-              width: 2
-            },
-            symbol: 'circle',
-            symbolSize: 4
-          },
-        ],
-      };
+function createBaseOption(isStandby = true) {
+  const standbyDates = [
+    '03-25', '03-26', '03-27', '03-28', '03-29', '03-30', '03-31',
+    '04-01', '04-02', '04-03', '04-04', '04-05', '04-06', '04-07',
+    '04-08', '04-09', '04-10', '04-11', '04-12', '04-13', '04-14',
+    '04-15', '04-16', '04-17', '04-18', '04-19', '04-20', '04-21',
+    '04-22', '04-23'
+  ]
+  const standbyLine = new Array(standbyDates.length).fill(0)
 
-      this.myChart.setOption(option);
-    },
-    handleResize() {
-      if (this.myChart) {
-        this.myChart.resize();
+  return {
+    backgroundColor: 'transparent',
+    color: ['#58d6ff', '#ff9461', '#63f2a6'],
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(10, 18, 34, 0.95)',
+      borderColor: 'rgba(94, 224, 255, 0.25)',
+      textStyle: { color: '#dffbff' },
+      axisPointer: {
+        type: 'line',
+        lineStyle: {
+          color: 'rgba(255,255,255,0.28)',
+          width: 1
+        }
       }
     },
-    generateXAxisData() {
-      const startDate = new Date('2025-01-01');
-      return Array.from({ length: 30 }, (_, index) => {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + index);
-        return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      });
+    legend: {
+      data: ['基准收益', '策略收益', '超额收益'],
+      bottom: 8,
+      itemWidth: 14,
+      itemHeight: 8,
+      textStyle: {
+        color: '#b9e7ff',
+        fontSize: 12
+      }
     },
-    generateRandomData(type) {
-      return Array.from({ length: 30 }, () => {
-        const base = Math.random() * 350;
-        if (type === '基准收益') {
-          return base;
-        } else if (type === '策略收益') {
-          return base * 1.1 + 50;
-        } else if (type === '超额收益') {
-          return base * 1.2 + 100;
+    grid: {
+      left: 58,
+      right: 28,
+      top: 46,
+      bottom: 76,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: standbyDates,
+      axisLabel: {
+        color: '#9fdcff',
+        rotate: 35,
+        fontSize: 10,
+        hideOverlap: true
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(94, 224, 255, 0.18)'
         }
-        return base;
-      });
+      },
+      axisTick: {
+        show: false
+      }
     },
-  },
-};
+    yAxis: {
+      type: 'value',
+      name: '收益走势(%)',
+      scale: true,
+      min: isStandby ? -10 : null,
+      max: isStandby ? 30 : null,
+      interval: isStandby ? 10 : null,
+      axisLabel: {
+        formatter: '{value}%',
+        color: '#9fdcff'
+      },
+      nameTextStyle: {
+        color: '#b9e7ff',
+        padding: [0, 0, 10, 0]
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(94, 224, 255, 0.08)'
+        }
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(94, 224, 255, 0.18)'
+        }
+      }
+    },
+    dataZoom: [
+      {
+        type: 'slider',
+        xAxisIndex: 0,
+        bottom: 22,
+        height: 18,
+        borderColor: 'rgba(94, 224, 255, 0.18)',
+        fillerColor: 'rgba(94, 224, 255, 0.16)',
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        textStyle: {
+          color: '#86dfff'
+        }
+      },
+      {
+        type: 'slider',
+        yAxisIndex: 0,
+        right: 8,
+        top: 82,
+        bottom: 84,
+        width: 16,
+        borderColor: 'rgba(94, 224, 255, 0.18)',
+        fillerColor: 'rgba(94, 224, 255, 0.16)',
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        textStyle: {
+          color: '#86dfff'
+        }
+      },
+      {
+        type: 'inside',
+        xAxisIndex: 0,
+        filterMode: 'none',
+        zoomOnMouseWheel: 'ctrl',
+        moveOnMouseWheel: true,
+        preventDefaultMouseMove: false
+      },
+      {
+        type: 'inside',
+        yAxisIndex: 0,
+        filterMode: 'none',
+        zoomOnMouseWheel: 'ctrl',
+        moveOnMouseWheel: false,
+        preventDefaultMouseMove: false
+      }
+    ],
+    series: [
+      {
+        name: '基准收益',
+        type: 'line',
+        smooth: false,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: 'rgba(88, 214, 255, 0.7)'
+        },
+        data: standbyLine
+      },
+      {
+        name: '策略收益',
+        type: 'line',
+        smooth: false,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: 'rgba(255, 148, 97, 0.35)'
+        },
+        data: standbyLine
+      },
+      {
+        name: '超额收益',
+        type: 'line',
+        smooth: false,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: 'rgba(99, 242, 166, 0.35)'
+        },
+        data: standbyLine
+      }
+    ]
+  }
+}
+
+function ensureChart() {
+  if (!chartContainer.value) return
+  if (!chartInstance) {
+    chartInstance = echarts.init(chartContainer.value)
+  }
+}
+
+function setEmptyChart() {
+  ensureChart()
+  if (!chartInstance) return
+  chartInstance.setOption(createBaseOption(true), true)
+}
+
+function normalizeSeries(data) {
+  if (!Array.isArray(data)) return []
+  return data.map(item => {
+    if (item === null || item === undefined || item === '') return null
+    const numeric = Number(item)
+    return Number.isFinite(numeric) ? numeric : null
+  })
+}
+
+function renderChart(payload) {
+  ensureChart()
+  if (!chartInstance) return
+
+  const dates = Array.isArray(payload?.dates) ? payload.dates : []
+  const strategy = normalizeSeries(payload?.strategy)
+  const benchmark = normalizeSeries(payload?.benchmark)
+  const excess = normalizeSeries(payload?.excess)
+
+  if (!dates.length || (!strategy.length && !benchmark.length && !excess.length)) {
+    setEmptyChart()
+    return
+  }
+
+  const option = createBaseOption(false)
+  option.xAxis.data = dates
+  option.series[0].data = benchmark
+  option.series[1].data = strategy
+  option.series[2].data = excess
+
+  chartInstance.setOption(option, true)
+}
+
+function handleResize() {
+  if (chartInstance) {
+    chartInstance.resize()
+  }
+}
+
+function handleExecutionStarted(event) {
+  renderChart(event.detail || {})
+}
+
+onMounted(async () => {
+  await nextTick()
+  setEmptyChart()
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('strategy-execution-started', handleExecutionStarted)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  window.removeEventListener('strategy-execution-started', handleExecutionStarted)
+  if (chartInstance) {
+    chartInstance.dispose()
+    chartInstance = null
+  }
+})
 </script>
 
 <style scoped>
 .chart-section {
   width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 .chart-container {
   width: 100%;
   height: 100%;
-  min-height: 200px;
+  min-height: 420px;
 }
 </style>
