@@ -194,8 +194,16 @@ export default {
       const totalMarketValue = positions.reduce((sum, p) => sum + Number(p.market_value), 0);
 
       const processedData = positions.map(pos => {
-        const currentPrice = Number(pos.open_price) || Number(pos.lastPrice) || 0;
-        const costPrice = Number(pos.avg_price) || 0;
+        const currentPrice =
+          Number(pos.current_price) ||
+          Number(pos.open_price) ||
+          Number(pos.lastPrice) ||
+          0;
+        const costPrice =
+          Number(pos.cost_price) ||
+          Number(pos.avg_price) ||
+          Number(pos.open_price) ||
+          0;
         const marketValue = Number(pos.market_value) || 0;
 
         // 💡 确保计算逻辑完全一致
