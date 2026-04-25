@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="strategy-result">
     <div class="title">策略执行结果</div>
 
@@ -32,15 +32,32 @@
         </el-table>
       </div>
 
-      <el-button type="primary" class="download-button" @click="downloadReport">
-        查看并下载执行报告
-      </el-button>
+      <div class="report-actions">
+        <el-button
+          type="primary"
+          class="download-button"
+          :disabled="!canDownloadOperationReport"
+          @click="downloadOperationReport"
+        >
+          策略操作报告
+        </el-button>
+        <el-button
+          type="primary"
+          plain
+          class="download-button result-report-button"
+          :disabled="!canDownloadResultReport"
+          @click="downloadResultReport"
+        >
+          策略回测结果报告
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import ChartSection from './ChartSection.vue'
 
 const defaultMetrics = [
@@ -70,6 +87,9 @@ const defaultExecutionInfo = [
 
 const keyMetrics = ref([...defaultMetrics])
 const executionInfo = ref([...defaultExecutionInfo])
+const currentPayload = ref(null)
+const chartImageDataUrl = ref('')
+const isRunCompleted = ref(false)
 
 const metricMapping = [
   ['策略收益率', 'total_return', '当前策略累计收益率'],
@@ -146,22 +166,183 @@ function buildExecutionInfo(meta = {}) {
   return mappedRows.length ? mappedRows : [...defaultExecutionInfo]
 }
 
-function handleExecutionStarted(event) {
-  const payload = event.detail || {}
-  keyMetrics.value = buildMetricRows(payload.metrics || {})
-  executionInfo.value = buildExecutionInfo(payload.execution_meta || {})
+function resetToPendingState() {
+  keyMetrics.value = [...defaultMetrics]
+  executionInfo.value = [...defaultExecutionInfo]
+  currentPayload.value = null
+  chartImageDataUrl.value = ''
+  isRunCompleted.value = false
 }
 
-function downloadReport() {
-  window.open('/api/download-strategy-report/', '_blank')
+function handleExecutionPending() {
+  resetToPendingState()
+}
+
+function handleExecutionStarted(event) {
+  const payload = event.detail || {}
+  currentPayload.value = payload
+  keyMetrics.value = buildMetricRows(payload.metrics || {})
+  executionInfo.value = buildExecutionInfo(payload.execution_meta || {})
+  isRunCompleted.value = true
+}
+
+function handleChartUpdated(event) {
+  chartImageDataUrl.value = event.detail?.imageDataUrl || ''
+}
+
+const currentArtifacts = computed(() => currentPayload.value?.execution_meta?.artifacts || {})
+const currentOperationReportPath = computed(() => {
+  return currentArtifacts.value.markdown_report || currentArtifacts.value.trade_excel || ''
+})
+
+const canDownloadOperationReport = computed(() => {
+  return isRunCompleted.value && Boolean(currentOperationReportPath.value)
+})
+
+const canDownloadResultReport = computed(() => {
+  return isRunCompleted.value && Boolean(chartImageDataUrl.value)
+})
+
+function downloadOperationReport() {
+  if (!canDownloadOperationReport.value) {
+    ElMessage.warning('请先等待本次回测执行完成，再下载本次策略操作报告')
+    return
+  }
+
+  const targetPath = encodeURIComponent(currentOperationReportPath.value)
+  window.open(`/api/download-strategy-report/?path=${targetPath}`, '_blank')
+}
+
+function createTableMarkup(rows, headers) {
+  const headerHtml = headers.map(header => `<th>${header}</th>`).join('')
+  const bodyHtml = rows
+    .map(row => `<tr>${row.map(cell => `<td>${cell ?? '--'}</td>`).join('')}</tr>`)
+    .join('')
+
+  return `
+    <table>
+      <thead><tr>${headerHtml}</tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>
+  `
+}
+
+function downloadResultReport() {
+  if (!canDownloadResultReport.value) {
+    ElMessage.warning('请先等待本次回测执行完成，再下载本次策略回测结果报告')
+    return
+  }
+
+  const meta = currentPayload.value?.execution_meta || {}
+  const metricsRows = keyMetrics.value.map(item => [item.metricName, item.metricValue, item.description])
+  const infoRows = executionInfo.value.map(item => [item.label, item.value])
+  const metricsTable = createTableMarkup(metricsRows, ['指标名称', '指标值', '描述'])
+  const infoTable = createTableMarkup(infoRows, ['项目', '内容'])
+  const title = `${meta.uploaded_filename || '策略'}_策略回测结果报告`
+  const generatedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+
+  const html = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px;
+      background: #111827;
+      color: #e5f6ff;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    h1, h2 {
+      margin: 0 0 16px;
+      color: #7dd3fc;
+    }
+    .meta {
+      margin-bottom: 24px;
+      color: #c8e8f9;
+      font-size: 14px;
+    }
+    .panel {
+      margin-bottom: 28px;
+      padding: 20px;
+      border: 1px solid rgba(125, 211, 252, 0.25);
+      border-radius: 12px;
+      background: #182235;
+      box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+    }
+    .chart-image {
+      width: 100%;
+      border-radius: 10px;
+      background: #1b2436;
+      display: block;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+    th, td {
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: rgba(125, 211, 252, 0.18);
+      color: #ffffff;
+    }
+    td {
+      background: rgba(255, 255, 255, 0.03);
+      color: #e5f6ff;
+    }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <div class="meta">生成时间：${generatedAt}</div>
+
+  <div class="panel">
+    <h2>完整回测执行图</h2>
+    <img class="chart-image" src="${chartImageDataUrl.value}" alt="策略回测执行图" />
+  </div>
+
+  <div class="panel">
+    <h2>关键指标表格</h2>
+    ${metricsTable}
+  </div>
+
+  <div class="panel">
+    <h2>本次执行信息</h2>
+    ${infoTable}
+  </div>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${title}.html`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 onMounted(() => {
+  window.addEventListener('strategy-execution-pending', handleExecutionPending)
   window.addEventListener('strategy-execution-started', handleExecutionStarted)
+  window.addEventListener('strategy-chart-updated', handleChartUpdated)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('strategy-execution-pending', handleExecutionPending)
   window.removeEventListener('strategy-execution-started', handleExecutionStarted)
+  window.removeEventListener('strategy-chart-updated', handleChartUpdated)
 })
 </script>
 
@@ -201,10 +382,20 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .download-button {
-  align-self: flex-end;
   background: linear-gradient(135deg, rgba(64, 224, 255, 0.32), rgba(30, 144, 255, 0.34)) !important;
   color: #ffffff !important;
+}
+
+.result-report-button {
+  border-color: rgba(64, 224, 255, 0.3) !important;
 }
 
 :deep(.el-table),

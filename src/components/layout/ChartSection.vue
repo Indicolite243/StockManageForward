@@ -29,6 +29,14 @@ const hasExecutionData = ref(false)
 let chartInstance = null
 let latestPayload = null
 
+function emitChartSnapshot(imageDataUrl = '') {
+  window.dispatchEvent(
+    new CustomEvent('strategy-chart-updated', {
+      detail: { imageDataUrl }
+    })
+  )
+}
+
 function createBaseOption(isStandby = true) {
   const standbyDates = [
     '03-25', '03-26', '03-27', '03-28', '03-29', '03-30', '03-31',
@@ -224,6 +232,7 @@ function setEmptyChart() {
   latestPayload = null
   visibleSeries.value = ['benchmark', 'strategy', 'excess']
   chartInstance.setOption(createBaseOption(true), true)
+  emitChartSnapshot('')
 }
 
 function normalizeSeries(data) {
@@ -262,6 +271,13 @@ function renderCurrentChart() {
   }
 
   chartInstance.setOption(option, true)
+  emitChartSnapshot(
+    chartInstance.getDataURL({
+      type: 'png',
+      pixelRatio: 2,
+      backgroundColor: '#1b2436'
+    })
+  )
 }
 
 function renderChart(payload) {
@@ -293,16 +309,22 @@ function handleExecutionStarted(event) {
   renderChart(event.detail || {})
 }
 
+function handleExecutionPending() {
+  setEmptyChart()
+}
+
 onMounted(async () => {
   await nextTick()
   setEmptyChart()
   window.addEventListener('resize', handleResize)
   window.addEventListener('strategy-execution-started', handleExecutionStarted)
+  window.addEventListener('strategy-execution-pending', handleExecutionPending)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('strategy-execution-started', handleExecutionStarted)
+  window.removeEventListener('strategy-execution-pending', handleExecutionPending)
   if (chartInstance) {
     chartInstance.dispose()
     chartInstance = null

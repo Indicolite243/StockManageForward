@@ -294,6 +294,7 @@ async function confirmUpload() {
   })
 
   isExecuting.value = true
+  window.dispatchEvent(new CustomEvent('strategy-execution-pending'))
   try {
     const response = await axios.post('/api/run-strategy/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
