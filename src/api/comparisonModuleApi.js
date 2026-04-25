@@ -1,11 +1,5 @@
-/**
- * 对比评估模块 - API调用
- * 专门用于ComparisonPage的三个对比模块
- */
+﻿import axios from 'axios'
 
-import axios from 'axios';
-
-// 创建一个axios实例配置后端地址
 const api = axios.create({
   baseURL: 'http://localhost:8000',
   timeout: 30000,
@@ -13,66 +7,39 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
-});
+})
 
-const ACCOUNT_ID = 'DEMO000001';
+const ACCOUNT_ID = 'DEMO000001'
 
-/**
- * 获取资产对比数据
- * API: /api/asset_comparison/?account_id=DEMO000001
- */
-export async function fetchAssetComparison(accountId = ACCOUNT_ID) {
-  try {
-    const response = await api.get('/api/asset_comparison/', {
-      params: {
-        account_id: accountId,
-        mock: 'false'
-      }
-    });
-    console.log(`✅ 资产对比 - 后端数据 (${accountId}):`, response.data);
-    return response.data;
-  } catch (error) {
-    console.error('❌ 获取资产对比数据失败:', error);
-    throw error;
-  }
+export async function fetchAssetComparison(accountId = ACCOUNT_ID, source = 'qmt') {
+  const response = await api.get('/api/asset_comparison/', {
+    params: {
+      account_id: accountId,
+      mock: 'false',
+      source
+    }
+  })
+  return response.data
 }
 
-/**
- * 获取年度对比数据
- * API: /api/timecomparison/yearly_comparison/?account_id=DEMO000001
- */
-export async function fetchYearlyComparisonData(accountId = ACCOUNT_ID) {
-  try {
-    const response = await api.get('/api/timecomparison/yearly_comparison/', {
-      params: {
-        account_id: accountId,
-        mock: 'false'
-      }
-    });
-    console.log(`✅ 年度对比 - 后端数据 (${accountId}):`, response.data);
-    return response.data;
-  } catch (error) {
-    console.error('❌ 获取年度对比数据失败:', error);
-    throw error;
-  }
+export async function fetchYearlyComparisonData(accountId = ACCOUNT_ID, source = 'mongodb') {
+  const response = await api.get('/api/timecomparison/yearly_comparison/', {
+    params: {
+      account_id: accountId,
+      mock: 'false',
+      source
+    }
+  })
+  return response.data
 }
 
-/**
- * 获取地区对比数据
- * API: /api/areacomparsion/area_comparison/?account_id=DEMO000001
- */
-export async function fetchAreaComparison(accountId = ACCOUNT_ID) {
-  try {
-    const response = await api.get('/api/areacomparsion/area_comparison/', {
-      params: {
-        account_id: accountId,
-        mock: 'false'
-      }
-    });
-    console.log(`✅ 地区对比 - 后端数据 (${accountId}):`, response.data);
-    return response.data;
-  } catch (error) {
-    console.error('❌ 获取地区对比数据失败:', error);
-    throw error;
-  }
+export async function fetchAreaComparison(accountId = ACCOUNT_ID, source = 'qmt') {
+  const response = await api.get('/api/areacomparsion/area_comparison/', {
+    params: {
+      account_id: accountId,
+      mock: 'false',
+      source
+    }
+  })
+  return response.data
 }

@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 import {
   mockAssetCategoryData,
   mockRegionData,
@@ -25,11 +25,12 @@ api.interceptors.response.use(
   }
 )
 
-export async function fetchAccountInfo() {
+export async function fetchAccountInfo(source = 'qmt') {
   try {
     const response = await api.get('/api/account-info/', {
       params: {
         mock: 'false',
+        source,
         _t: Date.now()
       }
     })
