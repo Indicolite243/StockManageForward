@@ -1,5 +1,13 @@
 <template>
   <div class="chart-section">
+    <div v-if="hasExecutionData" class="series-controls">
+      <el-checkbox-group v-model="visibleSeries" @change="renderCurrentChart">
+        <el-checkbox label="benchmark">基准收益</el-checkbox>
+        <el-checkbox label="strategy">策略收益</el-checkbox>
+        <el-checkbox label="excess">超额收益</el-checkbox>
+      </el-checkbox-group>
+    </div>
+
     <div ref="chartContainer" class="chart-container"></div>
   </div>
 </template>
@@ -8,8 +16,18 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as echarts from 'echarts'
 
+const SERIES_META = {
+  benchmark: { label: '基准收益', color: '#2fb8e8' },
+  strategy: { label: '策略收益', color: '#ff7a3d' },
+  excess: { label: '超额收益', color: '#39d98a' }
+}
+
 const chartContainer = ref(null)
+const visibleSeries = ref(['benchmark', 'strategy', 'excess'])
+const hasExecutionData = ref(false)
+
 let chartInstance = null
+let latestPayload = null
 
 function createBaseOption(isStandby = true) {
   const standbyDates = [
@@ -23,7 +41,11 @@ function createBaseOption(isStandby = true) {
 
   return {
     backgroundColor: 'transparent',
-    color: ['#58d6ff', '#ff9461', '#63f2a6'],
+    color: [
+      SERIES_META.benchmark.color,
+      SERIES_META.strategy.color,
+      SERIES_META.excess.color
+    ],
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(10, 18, 34, 0.95)',
@@ -38,7 +60,11 @@ function createBaseOption(isStandby = true) {
       }
     },
     legend: {
-      data: ['基准收益', '策略收益', '超额收益'],
+      data: [
+        SERIES_META.benchmark.label,
+        SERIES_META.strategy.label,
+        SERIES_META.excess.label
+      ],
       bottom: 8,
       itemWidth: 14,
       itemHeight: 8,
@@ -145,35 +171,38 @@ function createBaseOption(isStandby = true) {
     ],
     series: [
       {
-        name: '基准收益',
+        name: SERIES_META.benchmark.label,
         type: 'line',
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          width: 2,
-          color: 'rgba(88, 214, 255, 0.7)'
+          width: 2.6,
+          color: SERIES_META.benchmark.color,
+          opacity: isStandby ? 0.72 : 1
         },
         data: standbyLine
       },
       {
-        name: '策略收益',
+        name: SERIES_META.strategy.label,
         type: 'line',
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          width: 2,
-          color: 'rgba(255, 148, 97, 0.35)'
+          width: 2.6,
+          color: SERIES_META.strategy.color,
+          opacity: isStandby ? 0.48 : 1
         },
         data: standbyLine
       },
       {
-        name: '超额收益',
+        name: SERIES_META.excess.label,
         type: 'line',
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          width: 2,
-          color: 'rgba(99, 242, 166, 0.35)'
+          width: 2.6,
+          color: SERIES_META.excess.color,
+          opacity: isStandby ? 0.48 : 1
         },
         data: standbyLine
       }
@@ -191,6 +220,9 @@ function ensureChart() {
 function setEmptyChart() {
   ensureChart()
   if (!chartInstance) return
+  hasExecutionData.value = false
+  latestPayload = null
+  visibleSeries.value = ['benchmark', 'strategy', 'excess']
   chartInstance.setOption(createBaseOption(true), true)
 }
 
@@ -203,10 +235,36 @@ function normalizeSeries(data) {
   })
 }
 
-function renderChart(payload) {
+function renderCurrentChart() {
   ensureChart()
-  if (!chartInstance) return
+  if (!chartInstance || !latestPayload) return
 
+  const dates = Array.isArray(latestPayload?.dates) ? latestPayload.dates : []
+  const strategy = normalizeSeries(latestPayload?.strategy)
+  const benchmark = normalizeSeries(latestPayload?.benchmark)
+  const excess = normalizeSeries(latestPayload?.excess)
+
+  if (!dates.length || (!strategy.length && !benchmark.length && !excess.length)) {
+    setEmptyChart()
+    return
+  }
+
+  const option = createBaseOption(false)
+  option.xAxis.data = dates
+  option.series[0].data = visibleSeries.value.includes('benchmark') ? benchmark : []
+  option.series[1].data = visibleSeries.value.includes('strategy') ? strategy : []
+  option.series[2].data = visibleSeries.value.includes('excess') ? excess : []
+
+  option.legend.selected = {
+    [SERIES_META.benchmark.label]: visibleSeries.value.includes('benchmark'),
+    [SERIES_META.strategy.label]: visibleSeries.value.includes('strategy'),
+    [SERIES_META.excess.label]: visibleSeries.value.includes('excess')
+  }
+
+  chartInstance.setOption(option, true)
+}
+
+function renderChart(payload) {
   const dates = Array.isArray(payload?.dates) ? payload.dates : []
   const strategy = normalizeSeries(payload?.strategy)
   const benchmark = normalizeSeries(payload?.benchmark)
@@ -217,13 +275,12 @@ function renderChart(payload) {
     return
   }
 
-  const option = createBaseOption(false)
-  option.xAxis.data = dates
-  option.series[0].data = benchmark
-  option.series[1].data = strategy
-  option.series[2].data = excess
-
-  chartInstance.setOption(option, true)
+  latestPayload = payload
+  hasExecutionData.value = true
+  if (!visibleSeries.value.length) {
+    visibleSeries.value = ['benchmark', 'strategy', 'excess']
+  }
+  renderCurrentChart()
 }
 
 function handleResize() {
@@ -257,6 +314,31 @@ onBeforeUnmount(() => {
 .chart-section {
   width: 100%;
   height: 100%;
+}
+
+.series-controls {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.series-controls :deep(.el-checkbox-group) {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.series-controls :deep(.el-checkbox) {
+  color: #d8f7ff;
+}
+
+.series-controls :deep(.el-checkbox__label) {
+  color: #d8f7ff;
+  font-size: 12px;
+}
+
+.series-controls :deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
+  color: #ffffff;
 }
 
 .chart-container {
