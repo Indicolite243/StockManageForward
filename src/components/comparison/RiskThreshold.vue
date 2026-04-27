@@ -39,6 +39,7 @@
           数据源：{{ formatSource(meta.data_source) }}
           <span v-if="meta.snapshot_time"> · 更新时间：{{ meta.snapshot_time.replace('T', ' ') }}</span>
           <span v-if="meta.period_days_available"> · 样本数：{{ meta.period_days_available }}</span>
+          <span v-if="meta.range_start && meta.range_end"> · 区间：{{ meta.range_start }} 至 {{ meta.range_end }}</span>
         </div>
       </div>
     </div>

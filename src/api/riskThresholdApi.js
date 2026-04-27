@@ -9,13 +9,22 @@ const api = axios.create({
   }
 })
 
-export async function fetchRiskAssessment(accountId = 'DEMO000001', days = 30) {
+export async function fetchRiskAssessment(accountId = 'DEMO000001', days = 30, options = {}) {
+  const params = {
+    account_id: accountId,
+    days,
+    mock: 'false'
+  }
+
+  if (options.startDate) {
+    params.start_date = options.startDate
+  }
+  if (options.endDate) {
+    params.end_date = options.endDate
+  }
+
   const response = await api.get('/api/risk-threshold/assessment/', {
-    params: {
-      account_id: accountId,
-      days,
-      mock: 'false'
-    }
+    params
   })
   return transformRiskData(response.data)
 }
@@ -61,7 +70,9 @@ function transformRiskData(backendData) {
       data_source: backendData.data_source || 'mongodb_history',
       snapshot_time: backendData.snapshot_time || '',
       period_days_available: backendData.period_days_available || 0,
-      is_mock: Boolean(backendData.is_mock)
+      is_mock: Boolean(backendData.is_mock),
+      range_start: backendData.range_start || '',
+      range_end: backendData.range_end || ''
     }
   }
 }

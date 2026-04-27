@@ -67,6 +67,20 @@
                 <i class="title-icon threshold-icon"></i>
                 风险阈值
               </h4>
+              <div class="header-tools">
+                <el-date-picker
+                  v-model="pendingRiskDateRange"
+                  type="daterange"
+                  size="small"
+                  range-separator="至"
+                  start-placeholder="开始日期"
+                  end-placeholder="结束日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 260px"
+                />
+                <el-button size="small" @click="useCurrentRiskEndDate">当前时间</el-button>
+                <el-button size="small" type="primary" @click="confirmRiskDateRange">确认</el-button>
+              </div>
               <div class="status-indicator"></div>
             </div>
             <div class="panel-content">
@@ -144,6 +158,8 @@ export default {
       comparisonRequestId: 0,
       riskThresholdData: [],
       riskThresholdMeta: {},
+      riskDateRange: [],
+      pendingRiskDateRange: [],
       refreshTimer: null,
       riskWarnings: [
         {
@@ -157,6 +173,7 @@ export default {
   },
   async mounted() {
     this.pendingComparisonDataSource = this.comparisonDataSource
+    this.initializeRiskDateRange()
     await this.loadRiskThresholdData()
     this.refreshAllData()
     this.startRefreshTimer()
@@ -171,6 +188,42 @@ export default {
         if (this.comparisonDataSource !== 'qmt') return
         this.refreshAllData()
       }, 5000)
+    },
+    initializeRiskDateRange() {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(end.getDate() - 30)
+      const formatDate = (value) => {
+        const year = value.getFullYear()
+        const month = String(value.getMonth() + 1).padStart(2, '0')
+        const day = String(value.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      this.riskDateRange = [formatDate(start), formatDate(end)]
+      this.pendingRiskDateRange = [...this.riskDateRange]
+    },
+    useCurrentRiskEndDate() {
+      const end = new Date()
+      const year = end.getFullYear()
+      const month = String(end.getMonth() + 1).padStart(2, '0')
+      const day = String(end.getDate()).padStart(2, '0')
+      const endText = `${year}-${month}-${day}`
+      if (!this.pendingRiskDateRange || this.pendingRiskDateRange.length === 0) {
+        const start = new Date()
+        start.setDate(end.getDate() - 30)
+        const startText = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
+        this.pendingRiskDateRange = [startText, endText]
+        return
+      }
+      this.pendingRiskDateRange = [this.pendingRiskDateRange[0], endText]
+    },
+    async confirmRiskDateRange() {
+      this.riskDateRange = Array.isArray(this.pendingRiskDateRange) ? [...this.pendingRiskDateRange] : []
+      let currentAccountId = '62283925'
+      if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
+        currentAccountId = this.$refs.comparisonTable.selectedAccount
+      }
+      await this.loadRiskThresholdData(currentAccountId)
     },
     stopRefreshTimer() {
       if (this.refreshTimer) {
@@ -231,7 +284,12 @@ export default {
     },
     async loadRiskThresholdData(accountId = '62283925') {
       try {
-        const data = await fetchRiskAssessment(accountId, 30)
+        const options = {}
+        if (Array.isArray(this.riskDateRange) && this.riskDateRange.length === 2) {
+          options.startDate = this.riskDateRange[0]
+          options.endDate = this.riskDateRange[1]
+        }
+        const data = await fetchRiskAssessment(accountId, 30, options)
         this.riskThresholdData = data.risk_indicators || []
         this.riskThresholdMeta = data.meta || {}
       } catch (error) {
