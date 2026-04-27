@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import AssetDisplayModule from '@/components/AssetDisplayModule.vue'
+import AssetDisplayModule from '@/components/layout/AssetDisplayModule.vue'
 import RightAside from '@/components/layout/RightAside.vue'
 </script>
 
