@@ -76,7 +76,7 @@
 </template>
 
 <script>
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { fetchYearlyComparisonData, fetchAreaComparison } from '@/api/comparisonModuleApi.js'
 import { fetchAccountInfo } from '@/api/accountApi.js'
 
@@ -299,7 +299,7 @@ export default {
         borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
       }
     },
-    exportData() {
+    async exportData() {
       const headers = this.tableColumns.map(column => column.label)
       const rows = this.tableData.map(row =>
         this.tableColumns.map(column => {
@@ -317,13 +317,40 @@ export default {
         ['数据时间', this.exportTimestamp || '']
       ]
 
-      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, this.getTableTitle())
-
       const fileDate = new Date()
       const timestamp = fileDate.getFullYear().toString() + String(fileDate.getMonth() + 1).padStart(2, '0') + String(fileDate.getDate()).padStart(2, '0') + '_' + String(fileDate.getHours()).padStart(2, '0') + String(fileDate.getMinutes()).padStart(2, '0') + String(fileDate.getSeconds()).padStart(2, '0')
-      XLSX.writeFile(workbook, this.getTableTitle() + '_' + timestamp + '.xlsx')
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet(this.getTableTitle())
+      worksheet.addRows(worksheetData)
+
+      const headerRow = worksheet.getRow(1)
+      headerRow.font = { bold: true }
+
+      worksheet.columns = headers.map((header, index) => {
+        const maxLength = Math.max(
+          String(header || '').length,
+          ...rows.map(row => String(row[index] ?? '').length),
+          12
+        )
+        return {
+          header,
+          key: `col_${index}`,
+          width: Math.min(maxLength + 2, 24)
+        }
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = this.getTableTitle() + '_' + timestamp + '.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
     },
     async refreshData() {
       await this.loadTableData(this.tableType)
