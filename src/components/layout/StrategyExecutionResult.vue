@@ -7,29 +7,33 @@
 
       <div class="key-metrics">
         <div class="title">关键指标</div>
-        <el-table
-          :data="keyMetrics"
-          border
-          style="width: 100%"
-          :header-cell-style="headerStyle"
-        >
-          <el-table-column prop="metricName" label="指标名称" />
-          <el-table-column prop="metricValue" label="指标值" />
-          <el-table-column prop="description" label="描述" />
-        </el-table>
+        <div class="result-table-wrapper">
+          <el-table
+            :data="keyMetrics"
+            border
+            style="width: 100%"
+            :header-cell-style="headerStyle"
+          >
+            <el-table-column prop="metricName" label="指标名称" />
+            <el-table-column prop="metricValue" label="指标值" />
+            <el-table-column prop="description" label="描述" />
+          </el-table>
+        </div>
       </div>
 
       <div class="execution-meta">
         <div class="title">本次执行信息</div>
-        <el-table
-          :data="executionInfo"
-          border
-          style="width: 100%"
-          :header-cell-style="headerStyle"
-        >
-          <el-table-column prop="label" label="项目" width="180" />
-          <el-table-column prop="value" label="内容" />
-        </el-table>
+        <div class="result-table-wrapper">
+          <el-table
+            :data="executionInfo"
+            border
+            style="width: 100%"
+            :header-cell-style="headerStyle"
+          >
+            <el-table-column prop="label" label="项目" width="180" />
+            <el-table-column prop="value" label="内容" />
+          </el-table>
+        </div>
       </div>
 
       <div class="report-actions">
@@ -389,6 +393,21 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.key-metrics,
+.execution-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-table-wrapper {
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .download-button {
   background: linear-gradient(135deg, rgba(64, 224, 255, 0.32), rgba(30, 144, 255, 0.34)) !important;
   color: #ffffff !important;
@@ -417,5 +436,17 @@ onBeforeUnmount(() => {
 
 :deep(.el-table) {
   font-size: 11px;
+  background: transparent !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+:deep(.el-table__inner-wrapper) {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+:deep(.el-table__inner-wrapper::before) {
+  display: none !important;
 }
 </style>
