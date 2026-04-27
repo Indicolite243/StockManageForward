@@ -62,6 +62,7 @@
         <el-table
           :data="selectedStocks"
           style="width: 100%"
+          height="420"
           border
           :header-cell-style="headerStyle"
           :cell-style="cellStyle"
@@ -213,7 +214,6 @@ const selectedStocks = computed(() => {
   if (!account?.positions?.length) return []
   return [...account.positions]
     .sort((a, b) => Number(b.market_value || 0) - Number(a.market_value || 0))
-    .slice(0, 10)
     .map(position => ({
       stock_code: position.stock_code,
       open_price: formatNumber(position.open_price ?? position.current_price),

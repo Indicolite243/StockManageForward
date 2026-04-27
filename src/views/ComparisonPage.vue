@@ -103,6 +103,7 @@
               <ComparisonTable
                 ref="comparisonTable"
                 :table-type="getTableType()"
+                :export-timestamp="comparisonExportTimestamp"
                 @account-changed="handleAccountChange"
                 @refresh="refreshAllData"
               />
@@ -313,6 +314,9 @@ export default {
     }
   },
   computed: {
+    comparisonExportTimestamp() {
+      return this.comparisonSourceMeta?.snapshot_time || ''
+    },
     appliedComparisonSourceLabel() {
       return this.comparisonDataSource === 'qmt' ? 'QMT实时' : 'MongoDB缓存'
     },
