@@ -28,6 +28,7 @@ const hasExecutionData = ref(false)
 
 let chartInstance = null
 let latestPayload = null
+let resizeObserver = null
 
 function emitChartSnapshot(imageDataUrl = '') {
   window.dispatchEvent(
@@ -319,12 +320,22 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize)
   window.addEventListener('strategy-execution-started', handleExecutionStarted)
   window.addEventListener('strategy-execution-pending', handleExecutionPending)
+  if (typeof ResizeObserver !== 'undefined' && chartContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(chartContainer.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('strategy-execution-started', handleExecutionStarted)
   window.removeEventListener('strategy-execution-pending', handleExecutionPending)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   if (chartInstance) {
     chartInstance.dispose()
     chartInstance = null

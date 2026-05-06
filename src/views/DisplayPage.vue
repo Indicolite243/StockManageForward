@@ -107,7 +107,9 @@ export default {
     return {
       introPanelHeight: null,
       isDraggingPanels: false,
-      dragPreviewTop: 0
+      dragPreviewTop: 0,
+      resizeFrameId: null,
+      pendingPointerY: null
     }
   },
   computed: {
@@ -135,6 +137,10 @@ export default {
   beforeUnmount() {
     window.removeEventListener('resize', this.handleWindowResize)
     this.stopPanelResize()
+    if (this.resizeFrameId) {
+      cancelAnimationFrame(this.resizeFrameId)
+      this.resizeFrameId = null
+    }
   },
   methods: {
     restorePanelHeight() {
@@ -145,7 +151,6 @@ export default {
     },
     handleWindowResize() {
       this.ensureValidPanelHeights()
-      window.dispatchEvent(new Event('resize'))
     },
     ensureValidPanelHeights() {
       if (this.isMobileLayout) {
@@ -177,18 +182,28 @@ export default {
       window.addEventListener('mouseup', this.stopPanelResize)
     },
     handlePanelResize(event) {
+      this.pendingPointerY = event.clientY
+      if (this.resizeFrameId) {
+        return
+      }
+
+      this.resizeFrameId = requestAnimationFrame(() => {
+        this.resizeFrameId = null
+        this.applyPanelResize()
+      })
+    },
+    applyPanelResize() {
       const container = this.$refs.rightSection
-      if (!container) {
+      if (!container || this.pendingPointerY === null) {
         return
       }
 
       const rect = container.getBoundingClientRect()
       const availableHeight = rect.height - DIVIDER_HEIGHT
       const maxIntroHeight = Math.max(MIN_INTRO_HEIGHT, availableHeight - MIN_RESULT_HEIGHT)
-      const nextHeight = event.clientY - rect.top
+      const nextHeight = this.pendingPointerY - rect.top
       this.introPanelHeight = Math.min(Math.max(nextHeight, MIN_INTRO_HEIGHT), maxIntroHeight)
       this.dragPreviewTop = this.introPanelHeight + DIVIDER_HEIGHT / 2
-      window.dispatchEvent(new Event('resize'))
     },
     stopPanelResize() {
       if (!this.isDraggingPanels) {
@@ -199,11 +214,11 @@ export default {
       document.body.style.cursor = ''
       window.removeEventListener('mousemove', this.handlePanelResize)
       window.removeEventListener('mouseup', this.stopPanelResize)
+      this.pendingPointerY = null
 
       if (Number.isFinite(this.introPanelHeight)) {
         localStorage.setItem(PANEL_STORAGE_KEY, String(Math.round(this.introPanelHeight)))
       }
-      window.dispatchEvent(new Event('resize'))
     }
   }
 }
@@ -289,6 +304,17 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  will-change: transform;
+  touch-action: none;
+}
+
+.panel-resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -12px;
+  bottom: -12px;
 }
 
 .handle-track {
