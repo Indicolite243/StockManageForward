@@ -326,13 +326,12 @@ export default {
     comparisonSourceMetaText() {
       const effectiveSource = this.comparisonSourceMeta?.data_source || (this.comparisonDataSource === 'qmt' ? 'qmt_live' : 'mongodb_cache')
       const isRealtime = effectiveSource === 'qmt_live'
-      const sourceName = isRealtime ? 'QMT实时' : 'MongoDB缓存'
       const timeLabel = isRealtime ? '实时数据时间' : '缓存数据时间'
       const timeText = this.comparisonSourceMeta.snapshot_time
         ? `${timeLabel} ${String(this.comparisonSourceMeta.snapshot_time).replace('T', ' ')}`
         : '等待加载数据'
       const fallbackText = this.comparisonSourceMeta.fallback_reason ? ' · 当前为回退缓存' : ''
-      return [sourceName, timeText].filter(Boolean).join(' · ') + fallbackText
+      return timeText + fallbackText
     }
   }
 }
@@ -360,7 +359,7 @@ export default {
 .content-wrapper { position: relative; width: 100%; height: 100%; display: flex; gap: 20px; z-index: 3; }
 .glass-panel { position: relative; background: rgba(12, 20, 38, 0.4); backdrop-filter: blur(20px); border: 1px solid rgba(64, 224, 255, 0.3); border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); overflow: hidden; transition: all 0.3s ease; }
 .left-sidebar { width: 180px; min-width: 180px; display: flex; flex-direction: column; }
-.sidebar-header, .panel-header { padding: 12px 15px; background: rgba(64, 224, 255, 0.1); border-bottom: 1px solid rgba(64, 224, 255, 0.2); display: flex; align-items: center; gap: 8px; }
+.sidebar-header, .panel-header { padding: 12px 15px; background: rgba(64, 224, 255, 0.1); border-bottom: 1px solid rgba(64, 224, 255, 0.2); display: flex; align-items: center; gap: 8px; min-width: 0; }
 .header-line { width: 3px; height: 16px; background: linear-gradient(180deg, #40e0ff, #1e90ff); border-radius: 2px; }
 .sidebar-title, .panel-title { margin: 0; font-size: 14px; font-weight: 600; color: #ffffff; }
 .sidebar-menu { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -374,11 +373,11 @@ export default {
 .main-content { flex: 1; display: flex; flex-direction: column; gap: 20px; }
 .content-row { flex: 1; display: flex; gap: 20px; min-height: 0; }
 .content-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.panel-title { flex: 1; display: flex; align-items: center; gap: 6px; }
-.header-tools { display: flex; align-items: center; gap: 10px; }
+.panel-title { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; white-space: nowrap; min-width: max-content; }
+.header-tools { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; overflow: visible; }
 .source-state { font-size: 12px; color: rgba(255, 255, 255, 0.9); white-space: nowrap; }
 .source-state.pending { color: rgba(255, 220, 120, 0.95); }
-.source-meta { font-size: 12px; color: rgba(255, 255, 255, 0.82); white-space: nowrap; }
+.source-meta { flex: 0 0 auto; overflow: visible; text-overflow: clip; font-size: 12px; color: rgba(255, 255, 255, 0.82); white-space: nowrap; }
 .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88; }
 .panel-content { flex: 1; padding: 15px; overflow: hidden; position: relative; }
 .floating-decorations { position: absolute; inset: 0; pointer-events: none; z-index: 1; }

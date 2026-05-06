@@ -427,8 +427,9 @@ async function confirmUpload() {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .upload-content {
@@ -497,16 +498,38 @@ async function confirmUpload() {
 :deep(.el-table) {
   font-size: 11px;
   background: transparent !important;
-  border-radius: 8px !important;
+  border-radius: 12px !important;
   overflow: hidden !important;
 }
 
 :deep(.el-table__inner-wrapper) {
-  border-radius: 8px !important;
+  border-radius: 12px !important;
   overflow: hidden !important;
 }
 
 :deep(.el-table__inner-wrapper::before) {
   display: none !important;
+}
+
+:deep(.el-table::before),
+:deep(.el-table--border::after),
+:deep(.el-table--border .el-table__inner-wrapper::after) {
+  display: none !important;
+}
+
+:deep(.el-table th.el-table__cell:first-child) {
+  border-top-left-radius: 12px;
+}
+
+:deep(.el-table th.el-table__cell:last-child) {
+  border-top-right-radius: 12px;
+}
+
+:deep(.el-table__body tr:last-child td.el-table__cell:first-child) {
+  border-bottom-left-radius: 12px;
+}
+
+:deep(.el-table__body tr:last-child td.el-table__cell:last-child) {
+  border-bottom-right-radius: 12px;
 }
 </style>
