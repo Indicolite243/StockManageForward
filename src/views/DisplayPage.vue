@@ -20,7 +20,7 @@
         </div>
       </div>
 
-      <div class="right-section">
+      <div ref="rightSection" class="right-section" :style="rightSectionStyle">
         <div class="strategy-intro-panel glass-panel">
           <div class="panel-header">
             <div class="header-line"></div>
@@ -36,6 +36,27 @@
           <div class="panel-footer">
             <div class="footer-decoration"></div>
           </div>
+        </div>
+
+        <div
+          class="panel-resize-handle"
+          :class="{ dragging: isDraggingPanels }"
+          @mousedown="startPanelResize"
+        >
+          <div class="handle-track"></div>
+          <div class="handle-grip">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+
+        <div
+          v-if="isDraggingPanels"
+          class="drag-preview-line"
+          :style="{ top: `${dragPreviewTop}px` }"
+        >
+          <div class="drag-preview-badge">{{ Math.round(introPanelHeight || 0) }}px</div>
         </div>
 
         <div class="strategy-result-panel glass-panel">
@@ -70,12 +91,120 @@ import AssetDisplayModule from '@/components/layout/AssetDisplayModule.vue'
 import StrategyExecution from '@/components/layout/StrategyExecution.vue'
 import StrategyExecutionResult from '@/components/layout/StrategyExecutionResult.vue'
 
+const PANEL_STORAGE_KEY = 'display-page:intro-panel-height'
+const DIVIDER_HEIGHT = 18
+const MIN_INTRO_HEIGHT = 280
+const MIN_RESULT_HEIGHT = 360
+
 export default {
   name: 'DisplayPage',
   components: {
     AssetDisplayModule,
     StrategyExecution,
     StrategyExecutionResult
+  },
+  data() {
+    return {
+      introPanelHeight: null,
+      isDraggingPanels: false,
+      dragPreviewTop: 0
+    }
+  },
+  computed: {
+    rightSectionStyle() {
+      if (this.isMobileLayout) {
+        return {}
+      }
+
+      const introHeight = this.introPanelHeight || 420
+      return {
+        gridTemplateRows: `${introHeight}px ${DIVIDER_HEIGHT}px minmax(${MIN_RESULT_HEIGHT}px, 1fr)`
+      }
+    },
+    isMobileLayout() {
+      return typeof window !== 'undefined' && window.innerWidth <= 1200
+    }
+  },
+  mounted() {
+    this.restorePanelHeight()
+    this.$nextTick(() => {
+      this.ensureValidPanelHeights()
+    })
+    window.addEventListener('resize', this.handleWindowResize)
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.handleWindowResize)
+    this.stopPanelResize()
+  },
+  methods: {
+    restorePanelHeight() {
+      const savedHeight = Number(localStorage.getItem(PANEL_STORAGE_KEY))
+      if (Number.isFinite(savedHeight) && savedHeight > 0) {
+        this.introPanelHeight = savedHeight
+      }
+    },
+    handleWindowResize() {
+      this.ensureValidPanelHeights()
+      window.dispatchEvent(new Event('resize'))
+    },
+    ensureValidPanelHeights() {
+      if (this.isMobileLayout) {
+        return
+      }
+
+      const container = this.$refs.rightSection
+      if (!container) {
+        return
+      }
+
+      const availableHeight = container.clientHeight - DIVIDER_HEIGHT
+      const maxIntroHeight = Math.max(MIN_INTRO_HEIGHT, availableHeight - MIN_RESULT_HEIGHT)
+      const defaultHeight = Math.round(availableHeight * 0.42)
+      const nextHeight = this.introPanelHeight ?? defaultHeight
+      this.introPanelHeight = Math.min(Math.max(nextHeight, MIN_INTRO_HEIGHT), maxIntroHeight)
+    },
+    startPanelResize(event) {
+      if (this.isMobileLayout) {
+        return
+      }
+
+      event.preventDefault()
+      this.ensureValidPanelHeights()
+      this.isDraggingPanels = true
+      this.dragPreviewTop = (this.introPanelHeight || MIN_INTRO_HEIGHT) + DIVIDER_HEIGHT / 2
+      document.body.style.cursor = 'row-resize'
+      window.addEventListener('mousemove', this.handlePanelResize)
+      window.addEventListener('mouseup', this.stopPanelResize)
+    },
+    handlePanelResize(event) {
+      const container = this.$refs.rightSection
+      if (!container) {
+        return
+      }
+
+      const rect = container.getBoundingClientRect()
+      const availableHeight = rect.height - DIVIDER_HEIGHT
+      const maxIntroHeight = Math.max(MIN_INTRO_HEIGHT, availableHeight - MIN_RESULT_HEIGHT)
+      const nextHeight = event.clientY - rect.top
+      this.introPanelHeight = Math.min(Math.max(nextHeight, MIN_INTRO_HEIGHT), maxIntroHeight)
+      this.dragPreviewTop = this.introPanelHeight + DIVIDER_HEIGHT / 2
+      window.dispatchEvent(new Event('resize'))
+    },
+    stopPanelResize() {
+      if (!this.isDraggingPanels) {
+        return
+      }
+
+      this.isDraggingPanels = false
+      document.body.style.cursor = ''
+      window.removeEventListener('mousemove', this.handlePanelResize)
+      window.removeEventListener('mouseup', this.stopPanelResize)
+
+      if (Number.isFinite(this.introPanelHeight)) {
+        localStorage.setItem(PANEL_STORAGE_KEY, String(Math.round(this.introPanelHeight)))
+      }
+      window.dispatchEvent(new Event('resize'))
+    }
   }
 }
 </script>
@@ -140,19 +269,94 @@ export default {
 .right-section {
   width: 62%;
   min-width: 520px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: grid;
+  grid-template-rows: minmax(360px, 42%) 18px minmax(460px, 1fr);
+  gap: 0;
 }
 
 .strategy-intro-panel {
-  height: 50%;
-  min-height: 360px;
+  min-height: 0;
 }
 
 .strategy-result-panel {
-  height: 50%;
-  min-height: 460px;
+  min-height: 0;
+}
+
+.panel-resize-handle {
+  position: relative;
+  cursor: row-resize;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.handle-track {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(64, 224, 255, 0.2) 20%,
+    rgba(64, 224, 255, 0.55) 50%,
+    rgba(64, 224, 255, 0.2) 80%,
+    transparent 100%);
+}
+
+.handle-grip {
+  position: absolute;
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(17, 28, 48, 0.92);
+  border: 1px solid rgba(64, 224, 255, 0.24);
+  box-shadow: 0 0 16px rgba(64, 224, 255, 0.12);
+}
+
+.handle-grip span {
+  width: 28px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(144, 235, 255, 0.92);
+}
+
+.panel-resize-handle:hover .handle-grip,
+.panel-resize-handle.dragging .handle-grip {
+  border-color: rgba(64, 224, 255, 0.45);
+  box-shadow: 0 0 18px rgba(64, 224, 255, 0.2);
+}
+
+.drag-preview-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.drag-preview-line::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 0;
+  border-top: 2px dashed rgba(125, 225, 255, 0.95);
+  box-shadow: 0 0 12px rgba(64, 224, 255, 0.3);
+}
+
+.drag-preview-badge {
+  position: absolute;
+  right: 28px;
+  top: -14px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 225, 255, 0.55);
+  background: rgba(8, 16, 30, 0.92);
+  color: #d9f9ff;
+  font-size: 11px;
+  letter-spacing: 0;
+  box-shadow: 0 0 18px rgba(64, 224, 255, 0.16);
 }
 
 .panel-header {
@@ -271,12 +475,19 @@ export default {
 
   .right-section {
     height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
   .strategy-intro-panel,
   .strategy-result-panel {
     height: auto;
     min-height: 420px;
+  }
+
+  .panel-resize-handle {
+    display: none;
   }
 }
 </style>
