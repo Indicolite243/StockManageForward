@@ -1,20 +1,16 @@
 <template>
   <div class="login-container">
-    <!-- 背景粒子效果 -->
     <div class="background-particles">
       <div v-for="n in 30" :key="n" class="particle" :style="getParticleStyle()"></div>
     </div>
 
-    <!-- 登录卡片 -->
     <div class="login-card glass-effect">
-      <!-- 顶部装饰 -->
       <div class="card-decoration">
         <div class="decoration-line"></div>
         <div class="corner-accent left"></div>
         <div class="corner-accent right"></div>
       </div>
 
-      <!-- Logo区域 -->
       <div class="logo-section">
         <div class="logo-icon">
           <div class="icon-circle">
@@ -25,28 +21,36 @@
         <p class="system-subtitle">Stock Vision Analytics</p>
       </div>
 
-      <!-- 登录表单 -->
       <div class="form-section">
-        <el-form
-          ref="loginFormRef"
-          :model="loginForm"
-          :rules="loginRules"
-          class="login-form"
-        >
-          <!-- Token输入 -->
-          <el-form-item prop="token">
+        <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form">
+          <el-form-item prop="username">
             <el-input
-              v-model="loginForm.token"
-              type="textarea"
-              :rows="4"
-              placeholder="请输入Token"
-              prefix-icon="Key"
-              class="custom-input token-input"
+              v-model="loginForm.username"
+              placeholder="请输入账号"
+              class="custom-input"
               size="large"
             />
           </el-form-item>
 
-          <!-- 登录按钮 -->
+          <el-form-item prop="password">
+            <el-input
+              v-model="loginForm.password"
+              type="password"
+              show-password
+              placeholder="请输入密码"
+              class="custom-input"
+              size="large"
+              @keyup.enter="handleLogin"
+            />
+          </el-form-item>
+
+          <div class="form-actions">
+            <el-checkbox v-model="rememberPassword">保存密码</el-checkbox>
+            <button class="register-link" type="button" @click="registerDialogVisible = true">
+              账号注册
+            </button>
+          </div>
+
           <el-form-item>
             <el-button
               type="primary"
@@ -61,34 +65,127 @@
         </el-form>
       </div>
     </div>
+
+    <el-dialog
+      v-model="registerDialogVisible"
+      title="账号注册"
+      width="440px"
+      append-to-body
+      class="register-dialog"
+      destroy-on-close
+    >
+      <el-form
+        ref="registerFormRef"
+        :model="registerForm"
+        :rules="registerRules"
+        label-position="top"
+        class="register-form"
+      >
+        <el-form-item label="账号" prop="username">
+          <el-input v-model="registerForm.username" placeholder="请输入新账号" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input
+            v-model="registerForm.password"
+            type="password"
+            show-password
+            placeholder="请输入密码"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input
+            v-model="registerForm.confirmPassword"
+            type="password"
+            show-password
+            placeholder="请再次输入密码"
+            @keyup.enter="handleRegister"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeRegisterDialog">取消</el-button>
+          <el-button type="primary" :loading="registerLoading" @click="handleRegister">
+            确认注册
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
-import { loginWithToken } from '@/api/authApi.js'
+import {
+  clearRememberedLogin,
+  getRememberedLogin,
+  loginWithPassword,
+  registerWithPassword,
+  saveRememberedLogin
+} from '@/api/authApi.js'
 
 const router = useRouter()
 const loginFormRef = ref()
+const registerFormRef = ref()
 const loading = ref(false)
+const registerLoading = ref(false)
+const rememberPassword = ref(false)
+const registerDialogVisible = ref(false)
 
-// 登录表单数据
 const loginForm = reactive({
-  token: ''
+  username: '',
+  password: ''
 })
 
-// 表单验证规则
+const registerForm = reactive({
+  username: '',
+  password: '',
+  confirmPassword: ''
+})
+
 const loginRules = {
-  token: [
-    { required: true, message: '请输入Token', trigger: 'blur' },
-    { min: 10, message: 'Token长度至少10个字符', trigger: 'blur' }
+  username: [
+    { required: true, message: '请输入账号', trigger: 'blur' },
+    { min: 3, message: '账号长度至少 3 位', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少 6 位', trigger: 'blur' }
   ]
 }
 
-// 生成粒子样式
+const registerRules = {
+  username: [
+    { required: true, message: '请输入账号', trigger: 'blur' },
+    { min: 3, message: '账号长度至少 3 位', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少 6 位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    {
+      validator: (_, value, callback) => {
+        if (!value) {
+          callback(new Error('请再次输入密码'))
+          return
+        }
+        if (value !== registerForm.password) {
+          callback(new Error('两次输入的密码不一致'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
 const getParticleStyle = () => {
   const size = Math.random() * 3 + 1
   const animationDuration = Math.random() * 20 + 10
@@ -104,51 +201,77 @@ const getParticleStyle = () => {
   }
 }
 
-// 处理登录
+const closeRegisterDialog = () => {
+  registerDialogVisible.value = false
+  registerLoading.value = false
+  registerForm.username = ''
+  registerForm.password = ''
+  registerForm.confirmPassword = ''
+  registerFormRef.value?.clearValidate()
+}
+
+const handleRegister = async () => {
+  try {
+    await registerFormRef.value.validate()
+    registerLoading.value = true
+
+    const result = await registerWithPassword(
+      registerForm.username,
+      registerForm.password,
+      registerForm.confirmPassword
+    )
+
+    if (result?.success) {
+      ElMessage.success(result.message || '注册成功')
+      loginForm.username = registerForm.username
+      loginForm.password = registerForm.password
+      rememberPassword.value = true
+      closeRegisterDialog()
+      return
+    }
+
+    ElMessage.error(result?.message || '注册失败')
+  } catch (error) {
+    ElMessage.error(error?.details?.message || error?.message || '注册失败')
+  } finally {
+    registerLoading.value = false
+  }
+}
+
 const handleLogin = async () => {
   try {
     await loginFormRef.value.validate()
     loading.value = true
+    const result = await loginWithPassword(loginForm.username, loginForm.password)
 
-    console.log('🚀 开始登录流程，Token:', loginForm.token.substring(0, 20) + '...')
+    if (result?.success) {
+      if (rememberPassword.value) {
+        saveRememberedLogin(loginForm.username, loginForm.password, true)
+      } else {
+        clearRememberedLogin()
+      }
 
-    // 调用后端API进行token登录
-    const result = await loginWithToken(loginForm.token)
-
-    console.log('📋 登录结果:', result)
-
-    // 检查登录结果
-    if (result && result.success && result.connected) {
-      // 连接成功，跳转到display页面
-      console.log('✅ 登录成功，准备跳转到 /display')
-      ElMessage.success('登录成功，已连接到迅投')
-      
-      // 使用 nextTick 确保消息显示后再跳转
+      ElMessage.success('登录成功')
       await router.push('/display')
-    } else {
-      // 连接失败，显示错误信息
-      const errorMsg = result?.message || 'Token无效，无法连接到迅投'
-      console.error('❌ 登录失败:', errorMsg, result)
-      ElMessage.error(errorMsg)
+      return
     }
 
+    ElMessage.error(result?.message || '登录失败')
   } catch (error) {
-    console.error('❌ 登录异常:', error)
-    console.error('错误堆栈:', error.stack)
-    
-    // 根据错误类型显示不同的错误信息
-    if (error.response && error.response.data) {
-      const errorMsg = error.response.data.message || error.response.data.detail || 'Token无效'
-      ElMessage.error(errorMsg)
-    } else if (error.message) {
-      ElMessage.error(error.message)
-    } else {
-      ElMessage.error('Token无效，无法连接到迅投')
-    }
+    ElMessage.error(error?.details?.message || error?.message || '登录失败')
   } finally {
     loading.value = false
   }
 }
+
+onMounted(() => {
+  const remembered = getRememberedLogin()
+  if (remembered?.rememberPassword) {
+    loginForm.username = remembered.username || ''
+    loginForm.password = remembered.password || ''
+    rememberPassword.value = true
+  }
+})
 </script>
 
 <style scoped>
@@ -157,27 +280,15 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg,
-    #0c1426 0%,
-    #1a1f3a 25%,
-    #16213e 50%,
-    #0f1419 75%,
-    #000814 100%);
+  background: linear-gradient(135deg, #0c1426 0%, #1a1f3a 25%, #16213e 50%, #0f1419 75%, #000814 100%);
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   overflow: hidden;
 }
 
-/* 背景粒子 */
 .background-particles {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
 }
@@ -195,15 +306,18 @@ const handleLogin = async () => {
     transform: translateY(100vh) rotate(0deg);
     opacity: 0;
   }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
   100% {
     transform: translateY(-100vh) rotate(360deg);
     opacity: 0;
   }
 }
 
-/* 登录卡片 */
 .login-card {
   position: relative;
   width: 420px;
@@ -212,30 +326,24 @@ const handleLogin = async () => {
   z-index: 10;
   overflow: hidden;
   transform: translateY(-20px);
-
-  /* 增强立体感和发光效果 */
   box-shadow:
     0 0 0 1px rgba(64, 224, 255, 0.1),
     0 8px 32px rgba(0, 0, 0, 0.3),
     0 16px 64px rgba(64, 224, 255, 0.1),
     0 32px 128px rgba(64, 224, 255, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-
-  /* 动态发光边框 */
   border: 1px solid transparent;
   background:
     linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
     linear-gradient(45deg, rgba(64, 224, 255, 0.1), rgba(30, 144, 255, 0.1));
   background-clip: padding-box, border-box;
   background-origin: padding-box, border-box;
-
-  /* 添加动态光晕效果 */
   animation: cardGlow 4s ease-in-out infinite;
 }
 
-/* 卡片发光动画 */
 @keyframes cardGlow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow:
       0 0 0 1px rgba(64, 224, 255, 0.1),
       0 8px 32px rgba(0, 0, 0, 0.3),
@@ -253,7 +361,6 @@ const handleLogin = async () => {
   }
 }
 
-/* 卡片装饰 */
 .card-decoration {
   position: relative;
   height: 3px;
@@ -263,12 +370,14 @@ const handleLogin = async () => {
 .decoration-line {
   width: 100%;
   height: 1px;
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     transparent 0%,
     rgba(64, 224, 255, 0.6) 20%,
     rgba(64, 224, 255, 1) 50%,
     rgba(64, 224, 255, 0.6) 80%,
-    transparent 100%);
+    transparent 100%
+  );
   animation: pulse 3s ease-in-out infinite;
 }
 
@@ -281,10 +390,14 @@ const handleLogin = async () => {
   box-shadow: 0 0 10px rgba(64, 224, 255, 0.8);
 }
 
-.corner-accent.left { left: 0; }
-.corner-accent.right { right: 0; }
+.corner-accent.left {
+  left: 0;
+}
 
-/* Logo区域 */
+.corner-accent.right {
+  right: 0;
+}
+
 .logo-section {
   text-align: center;
   margin-bottom: 40px;
@@ -303,21 +416,8 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 0 30px rgba(64, 224, 255, 0.6),
-    inset 0 0 20px rgba(255, 255, 255, 0.2);
-
-  /* 优化Logo动画效果 */
+  box-shadow: 0 0 30px rgba(64, 224, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.2);
   animation: logoAnimation 6s ease-in-out infinite;
-  transition: all 0.3s ease;
-}
-
-.icon-circle:hover {
-  transform: scale(1.1);
-  box-shadow:
-    0 0 40px rgba(64, 224, 255, 0.8),
-    0 0 60px rgba(64, 224, 255, 0.4),
-    inset 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
 .icon-stock {
@@ -327,31 +427,19 @@ const handleLogin = async () => {
   clip-path: polygon(0% 100%, 25% 0%, 50% 50%, 75% 0%, 100% 100%);
 }
 
-/* Logo复合动画 */
 @keyframes logoAnimation {
-  0%, 100% {
+  0%,
+  100% {
     transform: rotate(0deg) scale(1);
-    box-shadow:
-      0 0 30px rgba(64, 224, 255, 0.6),
-      inset 0 0 20px rgba(255, 255, 255, 0.2);
   }
   25% {
     transform: rotate(90deg) scale(1.05);
-    box-shadow:
-      0 0 35px rgba(64, 224, 255, 0.7),
-      inset 0 0 20px rgba(255, 255, 255, 0.25);
   }
   50% {
     transform: rotate(180deg) scale(1);
-    box-shadow:
-      0 0 30px rgba(64, 224, 255, 0.6),
-      inset 0 0 20px rgba(255, 255, 255, 0.2);
   }
   75% {
     transform: rotate(270deg) scale(1.05);
-    box-shadow:
-      0 0 35px rgba(64, 224, 255, 0.7),
-      inset 0 0 20px rgba(255, 255, 255, 0.25);
   }
 }
 
@@ -363,7 +451,6 @@ const handleLogin = async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 0 20px rgba(64, 224, 255, 0.5);
 }
 
 .system-subtitle {
@@ -373,127 +460,66 @@ const handleLogin = async () => {
   letter-spacing: 2px;
 }
 
-/* 表单区域 */
 .form-section {
   margin-top: 30px;
 }
 
-.login-form {
-  margin-bottom: 20px;
-}
-
-.custom-input {
-  --el-input-bg-color: rgba(255, 255, 255, 0.05);
-  --el-input-border-color: rgba(64, 224, 255, 0.3);
-  --el-input-hover-border-color: rgba(64, 224, 255, 0.6);
-  --el-input-focus-border-color: rgba(64, 224, 255, 0.8);
-  --el-input-text-color: white;
-  --el-input-placeholder-color: rgba(255, 255, 255, 0.5);
-}
-
-/* 美化输入框聚焦状态 */
 .custom-input :deep(.el-input__wrapper) {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(64, 224, 255, 0.3);
   border-radius: 12px;
   box-shadow: 0 0 10px rgba(64, 224, 255, 0.1);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
+  transition: all 0.3s ease;
 }
 
-.custom-input :deep(.el-input__wrapper:hover) {
-  border-color: rgba(64, 224, 255, 0.6);
-  box-shadow: 0 0 20px rgba(64, 224, 255, 0.2);
+.custom-input :deep(.el-input__wrapper:hover),
+.custom-input :deep(.el-input__wrapper.is-focus) {
+  border-color: rgba(64, 224, 255, 0.8);
+  box-shadow: 0 0 20px rgba(64, 224, 255, 0.25);
+}
+
+.custom-input :deep(.el-input__inner) {
+  color: white;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -6px 0 22px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.form-actions :deep(.el-checkbox__label) {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.register-link {
+  min-width: 96px;
+  height: 36px;
+  padding: 0 16px;
+  color: #dff7ff;
+  background: linear-gradient(135deg, rgba(64, 224, 255, 0.18), rgba(30, 144, 255, 0.22));
+  border: 1px solid rgba(64, 224, 255, 0.35);
+  border-radius: 10px;
+  box-shadow:
+    0 0 12px rgba(64, 224, 255, 0.15),
+    inset 0 0 12px rgba(64, 224, 255, 0.08);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.register-link:hover {
+  color: #ffffff;
+  border-color: rgba(64, 224, 255, 0.55);
+  box-shadow:
+    0 0 18px rgba(64, 224, 255, 0.28),
+    inset 0 0 12px rgba(64, 224, 255, 0.12);
   transform: translateY(-1px);
 }
 
-.custom-input :deep(.el-input__wrapper.is-focus) {
-  border-color: rgba(64, 224, 255, 0.9);
-  box-shadow:
-    0 0 30px rgba(64, 224, 255, 0.4),
-    0 0 60px rgba(64, 224, 255, 0.2),
-    inset 0 0 20px rgba(64, 224, 255, 0.1);
-  transform: translateY(-2px);
-
-  /* 聚焦时的波纹扩散效果 */
-  animation: inputFocus 0.6s ease-out;
-}
-
-/* 输入框聚焦动画 */
-@keyframes inputFocus {
-  0% {
-    box-shadow:
-      0 0 0 0 rgba(64, 224, 255, 0.7),
-      0 0 30px rgba(64, 224, 255, 0.4),
-      0 0 60px rgba(64, 224, 255, 0.2),
-      inset 0 0 20px rgba(64, 224, 255, 0.1);
-  }
-  100% {
-    box-shadow:
-      0 0 0 20px rgba(64, 224, 255, 0),
-      0 0 30px rgba(64, 224, 255, 0.4),
-      0 0 60px rgba(64, 224, 255, 0.2),
-      inset 0 0 20px rgba(64, 224, 255, 0.1);
-  }
-}
-
-/* 输入框内部文字和图标优化 */
-.custom-input :deep(.el-input__inner) {
-  color: white;
-  font-size: 16px;
-  transition: all 0.3s ease;
-}
-
-.custom-input :deep(.el-input__inner:focus) {
-  color: #40e0ff;
-  text-shadow: 0 0 10px rgba(64, 224, 255, 0.5);
-}
-
-.custom-input :deep(.el-input__prefix) {
-  color: rgba(64, 224, 255, 0.8);
-  transition: all 0.3s ease;
-}
-
-.custom-input :deep(.el-input__wrapper.is-focus .el-input__prefix) {
-  color: #40e0ff;
-  text-shadow: 0 0 10px rgba(64, 224, 255, 0.8);
-}
-
-/* Token输入框 */
-.token-input {
-  width: 100%;
-}
-
-.token-input :deep(.el-textarea__inner) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(64, 224, 255, 0.3);
-  border-radius: 12px;
-  color: white;
-  font-size: 14px;
-  font-family: 'Courier New', monospace;
-  resize: vertical;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.token-input :deep(.el-textarea__inner:hover) {
-  border-color: rgba(64, 224, 255, 0.6);
-  box-shadow: 0 0 20px rgba(64, 224, 255, 0.2);
-}
-
-.token-input :deep(.el-textarea__inner:focus) {
-  border-color: rgba(64, 224, 255, 0.9);
-  box-shadow:
-    0 0 30px rgba(64, 224, 255, 0.4),
-    0 0 60px rgba(64, 224, 255, 0.2),
-    inset 0 0 20px rgba(64, 224, 255, 0.1);
-}
-
-.token-input :deep(.el-textarea__inner::placeholder) {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-/* 登录按钮 */
 .login-btn {
   width: 100%;
   background: linear-gradient(135deg, #40e0ff, #1e90ff);
@@ -516,26 +542,51 @@ const handleLogin = async () => {
   transform: translateY(-1px);
 }
 
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
 
-/* 动画 */
+:deep(.register-dialog .el-dialog) {
+  background: linear-gradient(135deg, rgba(18, 33, 61, 0.96), rgba(18, 28, 48, 0.98));
+  border: 1px solid rgba(64, 224, 255, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+:deep(.register-dialog .el-dialog__title),
+:deep(.register-dialog .el-form-item__label) {
+  color: #e6f7ff;
+}
+
+:deep(.register-dialog .el-dialog__body) {
+  padding-top: 14px;
+}
+
+:deep(.register-dialog .el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(64, 224, 255, 0.25);
+  box-shadow: none;
+}
+
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
 }
 
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Element Plus 样式覆盖 */
 :deep(.el-form-item) {
-  margin-bottom: 25px;
+  margin-bottom: 24px;
 }
 
 :deep(.el-form-item__error) {
   color: #ff6b6b;
-  font-size: 12px;
-  margin-top: 5px;
 }
 </style>

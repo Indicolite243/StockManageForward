@@ -1,13 +1,11 @@
 <template>
   <div class="menu-bar">
-    <!-- 顶部装饰线 -->
     <div class="top-decoration">
       <div class="decoration-line"></div>
       <div class="corner-accent left"></div>
       <div class="corner-accent right"></div>
     </div>
 
-    <!-- 主标题区域 -->
     <div class="header-section">
       <div class="logo-area">
         <div class="logo-icon">
@@ -21,7 +19,6 @@
         </div>
       </div>
 
-      <!-- 系统状态指示器 -->
       <div class="status-indicators">
         <div class="status-item">
           <div class="status-dot active"></div>
@@ -29,9 +26,8 @@
         </div>
         <div class="time-display">{{ currentTime }}</div>
 
-        <!-- 用户菜单 -->
         <div class="user-menu">
-          <el-dropdown @command="handleUserCommand" trigger="click">
+          <el-dropdown trigger="click" @command="handleUserCommand">
             <div class="user-avatar">
               <div class="avatar-circle">
                 <i class="avatar-icon">👤</i>
@@ -60,7 +56,6 @@
       </div>
     </div>
 
-    <!-- 导航菜单 -->
     <div class="nav-section">
       <el-menu
         :default-active="activeIndex"
@@ -86,7 +81,6 @@
       </el-menu>
     </div>
 
-    <!-- 底部装饰线 -->
     <div class="bottom-decoration">
       <div class="decoration-line"></div>
     </div>
@@ -94,20 +88,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus'; // 导入 ElMessage
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 
-const router = useRouter();
-const route = useRoute();
-const activeIndex = ref(route.path);
-const currentTime = ref('');
-const userName = ref('用户'); // 默认用户名
+import { getLocalUserInfo, logout as logoutApi } from '@/api/authApi.js'
 
-let timer = null;
+const router = useRouter()
+const route = useRoute()
+const activeIndex = ref(route.path)
+const currentTime = ref('')
+const userName = ref('用户')
+
+let timer = null
 
 const updateTime = () => {
-  const now = new Date();
+  const now = new Date()
   currentTime.value = now.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -115,63 +111,67 @@ const updateTime = () => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
-  });
-};
+  })
+}
 
 const handleSelect = (key) => {
-  activeIndex.value = key;
-  router.push(key);
-};
+  activeIndex.value = key
+  router.push(key)
+}
 
-// 处理用户菜单命令
-const handleUserCommand = (command) => {
+const handleLogout = async () => {
+  try {
+    await logoutApi()
+    userName.value = '用户'
+    ElMessage.success('已退出登录')
+    router.push('/login')
+  } catch (error) {
+    ElMessage.error(error?.message || '退出登录失败')
+  }
+}
+
+const handleUserCommand = async (command) => {
   switch (command) {
     case 'profile':
-      // TODO: 跳转到个人资料页面
-      ElMessage.info('个人资料功能开发中...');
-      break;
+      ElMessage.info('个人资料功能开发中...')
+      break
     case 'switch-account':
-      // 跳转到登录页面
-      router.push('/login');
-      break;
+      router.push('/login')
+      break
     case 'logout':
-      // 退出登录
-      handleLogout();
-      break;
+      await handleLogout()
+      break
+    default:
+      break
   }
-};
-
-// 退出登录处理
-const handleLogout = () => {
-  // TODO: 调用退出登录API
-  // 清除本地存储的用户信息
-  localStorage.removeItem('token');
-  localStorage.removeItem('userInfo');
-
-  ElMessage.success('已退出登录');
-  router.push('/login');
-};
+}
 
 onMounted(() => {
-  updateTime();
-  timer = setInterval(updateTime, 1000);
-});
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  const userInfo = getLocalUserInfo()
+  if (userInfo?.display_name || userInfo?.username) {
+    userName.value = userInfo.display_name || userInfo.username
+  }
+})
 
 onUnmounted(() => {
   if (timer) {
-    clearInterval(timer);
+    clearInterval(timer)
   }
-});
+})
 </script>
 
 <style scoped>
 .menu-bar {
   position: relative;
   width: 100%;
-  background: linear-gradient(135deg,
+  background: linear-gradient(
+    135deg,
     rgba(12, 20, 38, 0.95) 0%,
     rgba(26, 31, 58, 0.95) 50%,
-    rgba(15, 20, 25, 0.95) 100%);
+    rgba(15, 20, 25, 0.95) 100%
+  );
   backdrop-filter: blur(10px);
   border-bottom: 2px solid rgba(64, 224, 255, 0.3);
   box-shadow:
@@ -181,25 +181,23 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 顶部装饰 */
 .top-decoration {
   position: relative;
   height: 3px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(64, 224, 255, 0.8) 50%,
-    transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(64, 224, 255, 0.8) 50%, transparent 100%);
 }
 
 .decoration-line {
   width: 100%;
   height: 1px;
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     transparent 0%,
     rgba(64, 224, 255, 0.6) 20%,
     rgba(64, 224, 255, 1) 50%,
     rgba(64, 224, 255, 0.6) 80%,
-    transparent 100%);
+    transparent 100%
+  );
   animation: pulse 3s ease-in-out infinite;
 }
 
@@ -212,10 +210,14 @@ onUnmounted(() => {
   box-shadow: 0 0 10px rgba(64, 224, 255, 0.8);
 }
 
-.corner-accent.left { left: 0; }
-.corner-accent.right { right: 0; }
+.corner-accent.left {
+  left: 0;
+}
 
-/* 主标题区域 */
+.corner-accent.right {
+  right: 0;
+}
+
 .header-section {
   display: flex;
   justify-content: space-between;
@@ -276,7 +278,6 @@ onUnmounted(() => {
   letter-spacing: 1px;
 }
 
-/* 状态指示器 */
 .status-indicators {
   display: flex;
   align-items: center;
@@ -307,7 +308,6 @@ onUnmounted(() => {
   text-shadow: 0 0 5px rgba(64, 224, 255, 0.5);
 }
 
-/* 用户菜单 */
 .user-menu {
   margin-left: 20px;
 }
@@ -353,7 +353,6 @@ onUnmounted(() => {
   text-shadow: 0 0 5px rgba(64, 224, 255, 0.3);
 }
 
-/* 用户下拉菜单 */
 .user-dropdown {
   background: rgba(12, 20, 38, 0.95);
   backdrop-filter: blur(10px);
@@ -387,7 +386,6 @@ onUnmounted(() => {
   padding-top: 12px;
 }
 
-/* 导航区域 */
 .nav-section {
   padding: 0 30px 15px;
 }
@@ -472,34 +470,48 @@ onUnmounted(() => {
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* 底部装饰 */
 .bottom-decoration {
   height: 2px;
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     transparent 0%,
     rgba(64, 224, 255, 0.4) 25%,
     rgba(64, 224, 255, 0.8) 50%,
     rgba(64, 224, 255, 0.4) 75%,
-    transparent 100%);
+    transparent 100%
+  );
 }
 
-/* 动画 */
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
-/* Element Plus 样式覆盖 */
 :deep(.el-menu-item) {
   border: none !important;
   background: transparent !important;
