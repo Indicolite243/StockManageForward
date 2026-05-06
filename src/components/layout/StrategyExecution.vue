@@ -23,6 +23,32 @@
       </div>
 
       <div class="strategy-content-card">
+        <transition name="execution-progress-fade">
+          <div v-if="progressVisible" class="execution-progress-panel" :class="progressState">
+            <div class="execution-progress-meta">
+              <div class="execution-progress-meta-left">
+                <span class="execution-progress-text">{{ progressLabel }}</span>
+                <span class="execution-progress-value">{{ progressValue }}%</span>
+              </div>
+              <button
+                v-if="progressState === 'running'"
+                type="button"
+                class="execution-progress-cancel"
+                @click="cancelExecution"
+              >
+                取消执行
+              </button>
+            </div>
+            <div class="execution-progress-track">
+              <div
+                class="execution-progress-fill"
+                :class="progressState"
+                :style="{ width: `${progressValue}%` }"
+              ></div>
+            </div>
+          </div>
+        </transition>
+
         <div class="strategy-description">
           <div class="title">策略简介</div>
           <div class="description-text">{{ selectedStrategy.description }}</div>
@@ -50,6 +76,7 @@
       title="导入并运行策略文件"
       width="620px"
       :close-on-click-modal="false"
+      append-to-body
     >
       <div class="upload-content">
         <div class="form-block">
@@ -141,7 +168,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
 import { Document, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -190,6 +217,14 @@ const marketFileList = ref([])
 const isExecuting = ref(false)
 const engineType = ref('auto')
 const dateRange = ref(['2020-01-01', '2025-01-01'])
+const progressVisible = ref(false)
+const progressValue = ref(0)
+const progressLabel = ref('')
+const progressState = ref('running')
+let progressTimer = null
+let hideTimer = null
+let progressStageTimer = null
+let activeRequestController = null
 
 const detectedEngine = computed(() => {
   if (!selectedStrategyText.value) return 'unknown'
@@ -219,6 +254,88 @@ function headerStyle() {
     textAlign: 'center',
     borderBottom: '1px solid rgba(64, 224, 255, 0.3)'
   }
+}
+
+function clearProgressTimers() {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+  if (progressStageTimer) {
+    clearTimeout(progressStageTimer)
+    progressStageTimer = null
+  }
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+}
+
+function scheduleProgressStages(stages, index = 0) {
+  if (index >= stages.length || progressState.value !== 'running') {
+    return
+  }
+
+  const stage = stages[index]
+  progressStageTimer = setTimeout(() => {
+    if (progressState.value !== 'running') {
+      return
+    }
+
+    progressValue.value = Math.max(progressValue.value, stage.value)
+    progressLabel.value = stage.label
+    scheduleProgressStages(stages, index + 1)
+  }, stage.delay)
+}
+
+function startExecutionProgress() {
+  clearProgressTimers()
+  progressVisible.value = true
+  progressValue.value = 8
+  progressLabel.value = '正在上传策略文件...'
+  progressState.value = 'running'
+
+  progressTimer = setInterval(() => {
+    if (progressValue.value < 84) {
+      progressValue.value += 1
+    }
+  }, 900)
+
+  scheduleProgressStages([
+    { delay: 500, value: 18, label: '正在解析策略文件...' },
+    { delay: 800, value: 34, label: '正在校验回测参数...' },
+    { delay: 1100, value: 52, label: '正在加载行情与账户环境...' },
+    { delay: 1400, value: 68, label: '正在执行策略回测...' },
+    { delay: 1800, value: 82, label: '正在生成图表与指标...' },
+    { delay: 2200, value: 90, label: '正在整理报告结果...' }
+  ])
+}
+
+function finishExecutionProgress(state, label) {
+  clearProgressTimers()
+  progressVisible.value = true
+  progressValue.value = 100
+  progressState.value = state
+  progressLabel.value = label || (state === 'success' ? '策略回测执行完成' : '策略回测执行失败')
+  activeRequestController = null
+
+  hideTimer = setTimeout(() => {
+    progressVisible.value = false
+    progressValue.value = 0
+    progressLabel.value = ''
+    progressState.value = 'running'
+  }, state === 'success' ? 700 : 1000)
+}
+
+function cancelExecution() {
+  if (activeRequestController) {
+    activeRequestController.abort()
+    activeRequestController = null
+  }
+  finishExecutionProgress('error', '已取消本次回测请求')
+  isExecuting.value = false
+  window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
+  ElMessage.warning('已取消当前回测请求')
 }
 
 function handleStrategyChange() {}
@@ -294,26 +411,38 @@ async function confirmUpload() {
   })
 
   isExecuting.value = true
+  startExecutionProgress()
+  uploadDialogVisible.value = false
   window.dispatchEvent(new CustomEvent('strategy-execution-pending'))
   try {
+    activeRequestController = new AbortController()
     const response = await axios.post('/api/run-strategy/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 360000
+      timeout: 360000,
+      signal: activeRequestController.signal
     })
 
     if (response.data.status !== 'success') {
+      finishExecutionProgress('error')
+      window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
       ElMessage.error(response.data.message || '策略执行失败')
       return
     }
 
-    uploadDialogVisible.value = false
     resetUploadState()
     ElMessage.success('回测执行完成')
+    finishExecutionProgress('success')
     window.dispatchEvent(new CustomEvent('strategy-execution-started', { detail: response.data.data }))
   } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
+      return
+    }
+
     const payload = error.response?.data
 
     if (payload?.error_code === 'missing_market_data') {
+      finishExecutionProgress('error')
+      window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
       const missingList = (payload.missing_market_files || []).join('<br/>')
       await ElMessageBox.alert(
         `当前策略缺少以下行情文件：<br/><br/>${missingList}<br/><br/>请重新上传策略文件，并补充这些 .xlsx 行情文件。`,
@@ -328,6 +457,8 @@ async function confirmUpload() {
     }
 
     if (payload?.detail) {
+      finishExecutionProgress('error')
+      window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
       await ElMessageBox.alert(
         `<strong>${payload.message || '策略执行失败'}</strong><br/><br/><pre style="font-size:11px;max-height:220px;overflow:auto;background:#f5f5f5;padding:8px;">${payload.detail}</pre>`,
         '策略执行错误',
@@ -341,15 +472,23 @@ async function confirmUpload() {
     }
 
     if (error.code === 'ECONNABORTED') {
+      finishExecutionProgress('error')
+      window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
       ElMessage.error('回测请求超时，请稍后查看后端日志')
       return
     }
 
+    finishExecutionProgress('error')
+    window.dispatchEvent(new CustomEvent('strategy-execution-failed'))
     ElMessage.error(payload?.message || '无法连接到后端服务，请确认服务已启动')
   } finally {
     isExecuting.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  clearProgressTimers()
+})
 </script>
 
 <style scoped>
@@ -401,6 +540,98 @@ async function confirmUpload() {
   background: rgba(25, 39, 67, 0.65);
   border: 1px solid rgba(64, 224, 255, 0.18);
   border-radius: 8px;
+}
+
+.execution-progress-panel {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(10, 18, 34, 0.72);
+  border: 1px solid rgba(64, 224, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.execution-progress-panel.success {
+  border-color: rgba(76, 255, 155, 0.22);
+}
+
+.execution-progress-panel.error {
+  border-color: rgba(255, 106, 125, 0.22);
+}
+
+.execution-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.execution-progress-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.execution-progress-text {
+  font-size: 13px;
+  color: rgba(235, 248, 255, 0.92);
+  font-weight: 600;
+}
+
+.execution-progress-value {
+  font-size: 13px;
+  color: #8eefff;
+  font-weight: 700;
+  min-width: 44px;
+  text-align: right;
+}
+
+.execution-progress-cancel {
+  border: 1px solid rgba(255, 122, 138, 0.45);
+  background: linear-gradient(135deg, rgba(140, 26, 48, 0.92), rgba(186, 46, 64, 0.9));
+  color: #ffe7eb;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 106, 125, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.execution-progress-cancel:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 145, 157, 0.7);
+  box-shadow: 0 0 18px rgba(255, 106, 125, 0.26);
+}
+
+.execution-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.execution-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #39d6ff 0%, #4f9dff 55%, #99ebff 100%);
+  box-shadow: 0 0 12px rgba(64, 224, 255, 0.55);
+  transition: width 0.22s ease-out;
+}
+
+.execution-progress-fill.success {
+  background: linear-gradient(90deg, #59ff9a 0%, #5bf2bf 55%, #b8ffe0 100%);
+  box-shadow: 0 0 12px rgba(76, 255, 155, 0.55);
+}
+
+.execution-progress-fill.error {
+  background: linear-gradient(90deg, #ff6a7d 0%, #ff8b67 55%, #ffc0a6 100%);
+  box-shadow: 0 0 12px rgba(255, 106, 125, 0.55);
 }
 
 .strategy-description {
@@ -476,6 +707,17 @@ async function confirmUpload() {
 
 .engine-detect {
   color: #1f3b57;
+}
+
+.execution-progress-fade-enter-active,
+.execution-progress-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.execution-progress-fade-enter-from,
+.execution-progress-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 :deep(.el-table),
