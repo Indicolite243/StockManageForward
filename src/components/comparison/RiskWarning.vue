@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="attribution-panel">
     <template v-if="hasData">
       <div class="summary-grid">
@@ -67,7 +67,7 @@
       </div>
 
       <div class="card-section industry-section">
-        <div class="section-title">行业贡献</div>
+        <div class="industry-title-bar">行业贡献</div>
         <div v-if="industryRows.length" class="industry-list">
           <div v-for="industry in industryRows" :key="industry.name" class="industry-row">
             <div class="industry-header">
@@ -220,7 +220,9 @@ export default {
         bucket.count += 1
       })
 
-      const industryRows = Array.from(industryMap.values()).sort((a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct))
+      const industryRows = Array.from(industryMap.values()).sort(
+        (a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct)
+      )
       const positiveCount = rows.filter((item) => item.contributionPct > 0).length
       const negativeCount = rows.filter((item) => item.contributionPct < 0).length
       const totalPnlAmount = rows.reduce((sum, item) => sum + item.pnlAmount, 0)
@@ -357,10 +359,11 @@ export default {
 .section-title {
   font-size: 13px;
   margin-bottom: 12px;
-  min-height: 20px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  line-height: 1;
+  line-height: 28px;
+  padding: 0 2px;
 }
 
 .stock-list,
@@ -409,7 +412,23 @@ export default {
 }
 
 .industry-section {
-  flex: 1;
+  flex: 0 0 auto;
+  padding-top: 10px;
+}
+
+.industry-title-bar {
+  height: 40px;
+  min-height: 40px;
+  margin: 0 0 14px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.03);
+  box-sizing: border-box;
 }
 
 .industry-row {
@@ -509,8 +528,11 @@ export default {
 }
 
 .attribution-meta-panel {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
 }
 
 .attribution-meta {
@@ -521,6 +543,16 @@ export default {
   line-height: 1;
   min-height: 24px;
   align-items: center;
+  width: 100%;
+  padding: 10px 0;
+  box-sizing: border-box;
+}
+
+.attribution-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  line-height: 20px;
 }
 
 @media (max-width: 1200px) {
