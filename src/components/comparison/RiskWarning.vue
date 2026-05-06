@@ -1,110 +1,102 @@
 <template>
-  <div class="risk-warning">
-    <div class="warning-header">
-      <div class="status-overview">
-        <div class="status-circle" :class="getOverallStatus()"></div>
-        <div class="status-text">
-          <div class="status-title">{{ getStatusTitle() }}</div>
-          <div class="status-subtitle">{{ getStatusSubtitle() }}</div>
+  <div class="attribution-panel">
+    <template v-if="hasData">
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-label">组合市值</div>
+          <div class="summary-value">{{ formatCurrency(summary.totalMarketValue) }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">浮动盈亏</div>
+          <div class="summary-value" :class="valueClass(summary.totalPnlAmount)">
+            {{ formatSignedCurrency(summary.totalPnlAmount) }}
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">正贡献个股</div>
+          <div class="summary-value">{{ summary.positiveCount }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">主导行业</div>
+          <div class="summary-value small">{{ summary.leadingIndustry }}</div>
         </div>
       </div>
-      <div class="refresh-time">
-        最后更新: {{ currentTime }}
-      </div>
-    </div>
 
-    <div class="warning-content">
-      <div class="market-cap-overview">
-        <div class="overview-title">市值分布详情</div>
-        <div class="market-cap-list">
-          <div
-            v-for="(stock, index) in marketCapData"
-            :key="index"
-            class="stock-item"
-            :class="getStockCategory(stock)"
-          >
-            <div class="stock-icon" :class="`icon-${getStockCategory(stock)}`">
-              <div class="icon-dot"></div>
-            </div>
-
-            <div class="stock-details">
-              <div class="stock-name">{{ stock.name }}</div>
-              <div class="stock-market-cap">
-                市值: {{ stock.marketCap }}亿
+      <div class="top-contributors-grid">
+        <div class="card-section">
+          <div class="section-title">正贡献 Top 5</div>
+          <div v-if="topPositive.length" class="stock-list">
+            <div v-for="item in topPositive" :key="`pos-${item.stockCode}`" class="stock-row">
+              <div class="stock-main">
+                <div class="stock-name">{{ item.stockName }}</div>
+                <div class="stock-meta">{{ item.industry }} · 权重 {{ formatPercent(item.weightPct) }}</div>
+              </div>
+              <div class="stock-metrics positive">
+                <div>{{ formatSignedPercent(item.contributionPct) }}</div>
+                <div class="metric-sub">{{ formatSignedPercent(item.returnRate) }}</div>
               </div>
             </div>
+          </div>
+          <div v-else class="empty-inline">暂无正贡献个股</div>
+        </div>
 
-            <div class="stock-category-badge" :class="getStockCategory(stock)">
-              {{ getCategoryText(stock) }}
+        <div class="card-section">
+          <div class="section-title">负贡献 Top 5</div>
+          <div v-if="topNegative.length" class="stock-list">
+            <div v-for="item in topNegative" :key="`neg-${item.stockCode}`" class="stock-row">
+              <div class="stock-main">
+                <div class="stock-name">{{ item.stockName }}</div>
+                <div class="stock-meta">{{ item.industry }} · 权重 {{ formatPercent(item.weightPct) }}</div>
+              </div>
+              <div class="stock-metrics negative">
+                <div>{{ formatSignedPercent(item.contributionPct) }}</div>
+                <div class="metric-sub">{{ formatSignedPercent(item.returnRate) }}</div>
+              </div>
             </div>
           </div>
+          <div v-else class="empty-inline">暂无负贡献个股</div>
         </div>
       </div>
 
-      <div class="industry-distribution">
-        <div class="distribution-title">行业分布详情</div>
-        <div class="industry-list">
-          <div v-for="item in industryData" :key="item.name" class="industry-item">
-            <div class="industry-info">
-              <span class="industry-name">{{ item.name }}</span>
-              <span class="industry-value">{{ item.value.toFixed(2) }}%</span>
-            </div>
-            <el-progress
-              :percentage="item.value"
-              :stroke-width="8"
-              :show-text="false"
-              :color="getIndustryColor(item.name)"
-            />
-          </div>
+      <div class="card-section attribution-meta-panel">
+        <div class="attribution-meta">
+          <span>样本个股 {{ attributionRows.length }} 只</span>
+          <span>数据来源 {{ sourceLabel }}</span>
+          <span v-if="snapshotTime">数据时间 {{ snapshotTime }}</span>
         </div>
       </div>
 
-      <div class="market-cap-stats">
-        <div class="stats-title">业绩归因板块 (市值)</div>
-        <div class="stats-grid">
-          <div class="stat-item small">
-            <div class="stat-icon"></div>
-            <div class="stat-content">
-              <div class="stat-number">{{ getSmallCapCount() }}</div>
-              <div class="stat-label">小市值</div>
+      <div class="card-section industry-section">
+        <div class="section-title">行业贡献</div>
+        <div v-if="industryRows.length" class="industry-list">
+          <div v-for="industry in industryRows" :key="industry.name" class="industry-row">
+            <div class="industry-header">
+              <span class="industry-name">{{ industry.name }}</span>
+              <span class="industry-value" :class="valueClass(industry.contributionPct)">
+                {{ formatSignedPercent(industry.contributionPct) }}
+              </span>
             </div>
-          </div>
-
-          <div class="stat-item medium">
-            <div class="stat-icon"></div>
-            <div class="stat-content">
-              <div class="stat-number">{{ getMediumCapCount() }}</div>
-              <div class="stat-label">中市值</div>
-            </div>
-          </div>
-
-          <div class="stat-item large">
-            <div class="stat-icon"></div>
-            <div class="stat-content">
-              <div class="stat-number">{{ getLargeCapCount() }}</div>
-              <div class="stat-label">大市值</div>
+            <div class="industry-bar-track">
+              <div
+                class="industry-bar"
+                :class="valueClass(industry.contributionPct)"
+                :style="industryBarStyle(industry.contributionPct)"
+              ></div>
             </div>
           </div>
         </div>
+        <div v-else class="empty-inline">暂无行业归因数据</div>
       </div>
-    </div>
+    </template>
 
-    <div class="warning-actions">
-      <el-button size="small" type="primary" @click="handleMarketCapAnalysis">
-        <i class="handle-icon"></i>
-        市值分析
-      </el-button>
-      <el-button size="small" @click="refreshMarketCapData">
-        <i class="refresh-icon"></i>
-        刷新数据
-      </el-button>
+    <div v-else class="empty-state">
+      <div class="empty-title">暂无业绩归因数据</div>
+      <div class="empty-text">切换到资产对比并加载持仓后，这里会展示个股与行业贡献。</div>
     </div>
   </div>
 </template>
 
 <script>
-import { fetchMarketCapData } from '@/api/performanceAttributionApi.js';
-
 export default {
   name: 'RiskWarning',
   props: {
@@ -113,584 +105,428 @@ export default {
       default: () => []
     }
   },
-
   data() {
     return {
-      currentTime: '',
-      timer: null,
-      marketCapData: [],
-      industryData: [],
-      marketCapSummary: { small: 0, medium: 0, large: 0, total: 0 },
-      loading: false
-    };
+      attributionRows: [],
+      industryRows: [],
+      summary: {
+        totalMarketValue: 0,
+        totalPnlAmount: 0,
+        positiveCount: 0,
+        negativeCount: 0,
+        leadingIndustry: '--'
+      },
+      sourceLabel: '--',
+      snapshotTime: ''
+    }
   },
-  async mounted() {
-    this.updateTime();
-    this.timer = setInterval(this.updateTime, 1000);
-
-    // 加载市值分布数据
-    await this.loadMarketCapData();
-  },
-  beforeUnmount() {
-    if (this.timer) {
-      clearInterval(this.timer);
+  computed: {
+    hasData() {
+      return this.attributionRows.length > 0
+    },
+    topPositive() {
+      return this.attributionRows
+        .filter((item) => item.contributionPct > 0)
+        .sort((a, b) => b.contributionPct - a.contributionPct)
+        .slice(0, 5)
+    },
+    topNegative() {
+      return this.attributionRows
+        .filter((item) => item.contributionPct < 0)
+        .sort((a, b) => a.contributionPct - b.contributionPct)
+        .slice(0, 5)
+    },
+    maxIndustryContributionAbs() {
+      const values = this.industryRows.map((item) => Math.abs(item.contributionPct))
+      return values.length ? Math.max(...values, 0.01) : 0.01
     }
   },
   methods: {
-    async loadMarketCapData(accountId = '62283925') {
-      this.loading = true;
-      try {
-        console.log('📡 开始加载市值分布数据...');
-        const data = await fetchMarketCapData(accountId);
-        console.log('✅ 市值分布数据:', data);
+    setData(rawData) {
+      if (!rawData) {
+        this.resetState()
+        return
+      }
 
-        // 兼容新旧数据格式
-        if (data.stocks && data.summary) {
-          // 新格式：包含 stocks 和 summary
-          this.marketCapData = data.stocks;
-          this.marketCapSummary = data.summary;
-          // 💡 注入行业数据
-          if (data.industries) {
-            // 计算各行业百分比
-            const totalMV = data.industries.reduce((sum, i) => sum + i.marketValue, 0);
-            this.industryData = data.industries.map(i => ({
-              name: i.name,
-              value: totalMV > 0 ? (i.marketValue / totalMV) * 100 : 0
-            }));
+      const positions = Array.isArray(rawData.asset_data)
+        ? rawData.asset_data
+        : Array.isArray(rawData.positions)
+          ? rawData.positions
+          : []
+
+      if (!positions.length) {
+        this.resetState(rawData)
+        return
+      }
+
+      const totalMarketValue =
+        Number(rawData.total_market_value || 0) ||
+        positions.reduce((sum, item) => sum + Number(item.market_value || 0), 0)
+
+      const rows = positions
+        .map((item) => {
+          const stockCode = item.stock_code || ''
+          const stockName = item.stock_name || stockCode || '--'
+          const industry = item.industry || item.industry_name || '未分类'
+          const currentPrice = Number(item.current_price || item.open_price || item.lastPrice || 0)
+          const costPrice = Number(item.cost_price || item.avg_price || item.open_price || 0)
+          const volume = Number(item.volume || 0)
+          const marketValue = Number(item.market_value || 0)
+          const returnRate = Number(
+            item.profit_loss_rate ??
+              item.daily_return ??
+              (costPrice > 0 && currentPrice > 0 ? ((currentPrice - costPrice) / costPrice) * 100 : 0)
+          )
+          const pnlAmount =
+            volume > 0 && costPrice > 0 ? (currentPrice - costPrice) * volume : marketValue * (returnRate / 100)
+          const weightPct = Number(
+            item.asset_ratio ??
+              item.percentage ??
+              (totalMarketValue > 0 ? (marketValue / totalMarketValue) * 100 : 0)
+          )
+          const contributionPct = totalMarketValue > 0 ? (pnlAmount / totalMarketValue) * 100 : 0
+
+          return {
+            stockCode,
+            stockName,
+            industry,
+            currentPrice,
+            costPrice,
+            volume,
+            marketValue,
+            returnRate,
+            pnlAmount,
+            weightPct,
+            contributionPct
           }
-        } else if (Array.isArray(data)) {
-          // 旧格式：直接是数组
-          this.marketCapData = data;
-          this.marketCapSummary = this.calculateSummary(data);
-        } else {
-          this.marketCapData = [];
-          this.marketCapSummary = { small: 0, medium: 0, large: 0, total: 0 };
+        })
+        .sort((a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct))
+
+      const industryMap = new Map()
+      rows.forEach((row) => {
+        if (!industryMap.has(row.industry)) {
+          industryMap.set(row.industry, {
+            name: row.industry,
+            contributionPct: 0,
+            pnlAmount: 0,
+            marketValue: 0,
+            count: 0
+          })
         }
-        console.log('📊 市值数据赋值后:', this.marketCapData);
-        console.log('📊 市值统计:', this.marketCapSummary);
-      } catch (error) {
-        console.error('❌ 加载市值分布数据失败:', error);
-        // 不显示数据
-        this.marketCapData = [];
-      } finally {
-        this.loading = false;
+        const bucket = industryMap.get(row.industry)
+        bucket.contributionPct += row.contributionPct
+        bucket.pnlAmount += row.pnlAmount
+        bucket.marketValue += row.marketValue
+        bucket.count += 1
+      })
+
+      const industryRows = Array.from(industryMap.values()).sort((a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct))
+      const positiveCount = rows.filter((item) => item.contributionPct > 0).length
+      const negativeCount = rows.filter((item) => item.contributionPct < 0).length
+      const totalPnlAmount = rows.reduce((sum, item) => sum + item.pnlAmount, 0)
+      const leadingIndustry = industryRows.length ? industryRows[0].name : '--'
+
+      this.attributionRows = rows
+      this.industryRows = industryRows
+      this.summary = {
+        totalMarketValue,
+        totalPnlAmount,
+        positiveCount,
+        negativeCount,
+        leadingIndustry
       }
+      this.sourceLabel = this.resolveSourceLabel(rawData.data_source)
+      this.snapshotTime = rawData.snapshot_time ? String(rawData.snapshot_time).replace('T', ' ') : ''
     },
-
-    updateTime() {
-      const now = new Date();
-      this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-    },
-
-    getOverallStatus() {
-      const total = this.marketCapData.length;
-      if (total > 0) return 'status-active';
-      return 'status-inactive';
-    },
-
-    getStatusTitle() {
-      return '市值分布概览';
-    },
-
-    getStatusSubtitle() {
-      const { total, small, medium, large } = this.marketCapSummary;
-      return `共${total}只股票：小市值${small}只，中市值${medium}只，大市值${large}只`;
-    },
-
-    // 使用 API 层返回的 category，如果没有则根据市值分类
-    getStockCategory(stock) {
-      // 优先使用 API 层返回的 category (small/medium/large)
-      if (['small', 'medium', 'large'].includes(stock.category)) {
-        return stock.category;
+    resetState(rawData = null) {
+      this.attributionRows = []
+      this.industryRows = []
+      this.summary = {
+        totalMarketValue: 0,
+        totalPnlAmount: 0,
+        positiveCount: 0,
+        negativeCount: 0,
+        leadingIndustry: '--'
       }
-      // 兼容旧格式：根据 marketCap 计算
-      if (stock.marketCap < 50) return 'small';
-      if (stock.marketCap >= 50 && stock.marketCap < 500) return 'medium';
-      return 'large';
+      this.sourceLabel = rawData ? this.resolveSourceLabel(rawData.data_source) : '--'
+      this.snapshotTime = rawData?.snapshot_time ? String(rawData.snapshot_time).replace('T', ' ') : ''
     },
-
-    getCategoryText(stock) {
-      const category = this.getStockCategory(stock);
-      const categoryMap = {
-        small: '小市值',
-        medium: '中市值',
-        large: '大市值'
-      };
-      return categoryMap[category] || '未知';
+    resolveSourceLabel(source) {
+      if (source === 'qmt_live') return 'QMT实时'
+      if (source === 'mongodb_cache') return 'MongoDB缓存'
+      if (source === 'mongodb_history') return 'MongoDB历史快照'
+      return '--'
     },
-
-    // 直接使用 API 层返回的统计结果
-    getSmallCapCount() {
-      return this.marketCapSummary.small || 0;
+    valueClass(value) {
+      if (value > 0) return 'positive'
+      if (value < 0) return 'negative'
+      return 'neutral'
     },
-
-    getMediumCapCount() {
-      return this.marketCapSummary.medium || 0;
+    industryBarStyle(value) {
+      const width = `${Math.max(6, (Math.abs(value) / this.maxIndustryContributionAbs) * 100)}%`
+      return { width }
     },
-
-    getLargeCapCount() {
-      return this.marketCapSummary.large || 0;
+    formatCurrency(value) {
+      return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
     },
-
-    // 兼容旧数据格式的统计方法（仅在数据没有 summary 时使用）
-    calculateSummary(data) {
-      return {
-        small: data.filter(stock => {
-          const category = stock.category || (stock.marketCap < 50 ? 'small' : (stock.marketCap < 500 ? 'medium' : 'large'));
-          return category === 'small';
-        }).length,
-        medium: data.filter(stock => {
-          const category = stock.category || (stock.marketCap < 50 ? 'small' : (stock.marketCap < 500 ? 'medium' : 'large'));
-          return category === 'medium';
-        }).length,
-        large: data.filter(stock => {
-          const category = stock.category || (stock.marketCap < 50 ? 'small' : (stock.marketCap < 500 ? 'medium' : 'large'));
-          return category === 'large';
-        }).length,
-        total: data.length
-      };
+    formatSignedCurrency(value) {
+      const amount = Number(value || 0)
+      const prefix = amount > 0 ? '+' : ''
+      return `${prefix}${amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
     },
-
-    handleMarketCapAnalysis() {
-      console.log('进行市值分析');
-      // 这里可以实现市值分析的逻辑
+    formatSignedPercent(value) {
+      const amount = Number(value || 0)
+      const prefix = amount > 0 ? '+' : ''
+      return `${prefix}${amount.toFixed(2)}%`
     },
-
-    async refreshMarketCapData() {
-      console.log('🔄 刷新市值数据...');
-      await this.loadMarketCapData();
-      this.$emit('refresh');
+    formatPercent(value) {
+      return `${Number(value || 0).toFixed(2)}%`
     }
   }
-};
+}
 </script>
 
 <style scoped>
-.risk-warning {
-  width: 100%;
+.attribution-panel {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  color: #ffffff;
+  overflow-y: auto;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-.warning-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(64, 224, 255, 0.2);
-  border-radius: 8px;
+.summary-card,
+.card-section {
+  background: rgba(21, 31, 56, 0.72);
+  border: 1px solid rgba(64, 224, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: inset 0 0 18px rgba(64, 224, 255, 0.05);
 }
 
-.status-overview {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.summary-card {
+  padding: 12px 14px;
 }
 
-.status-circle {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  position: relative;
-  animation: statusPulse 2s ease-in-out infinite;
+.summary-label,
+.section-title,
+.stock-meta,
+.attribution-meta {
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.status-circle.status-active {
-  background: #40e0ff;
-  box-shadow: 0 0 12px rgba(64, 224, 255, 0.6);
-}
-
-.status-circle.status-inactive {
-  background: #666666;
-  box-shadow: 0 0 12px rgba(102, 102, 102, 0.6);
-}
-
-@keyframes statusPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
-}
-
-.status-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.status-title {
-  color: #ffffff;
+.summary-label {
   font-size: 12px;
-  font-weight: bold;
-}
-
-.status-subtitle {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 10px;
-}
-
-.refresh-time {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10px;
-  font-family: monospace;
-}
-
-.warning-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-/* 隐藏滚动条但保持功能 (可选) */
-.warning-content::-webkit-scrollbar {
-  width: 4px;
-}
-
-.market-cap-overview {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.overview-title {
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: bold;
-  text-align: center;
-  padding: 4px;
-  background: rgba(64, 224, 255, 0.1);
-  border-radius: 4px;
-}
-
-.market-cap-list {
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.stock-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
   margin-bottom: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(64, 224, 255, 0.2);
-  border-radius: 6px;
-  transition: all 0.3s ease;
 }
 
-.stock-item:hover {
-  border-color: rgba(64, 224, 255, 0.4);
-  box-shadow: 0 0 10px rgba(64, 224, 255, 0.1);
-  transform: translateY(-1px);
+.summary-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #9ad9ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.stock-item.small {
-  border-left: 3px solid #ff6b6b;
+.summary-value.small {
+  font-size: 18px;
 }
 
-.stock-item.medium {
-  border-left: 3px solid #feca57;
+.top-contributors-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
 }
 
-.stock-item.large {
-  border-left: 3px solid #48dbfb;
+.card-section {
+  padding: 14px;
+  min-height: 0;
 }
 
-.stock-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+.section-title {
+  font-size: 13px;
+  margin-bottom: 12px;
+  min-height: 20px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  position: relative;
-  flex-shrink: 0;
+  line-height: 1;
 }
 
-.icon-small {
-  background: rgba(255, 107, 107, 0.2);
-  border: 2px solid #ff6b6b;
-}
-
-.icon-medium {
-  background: rgba(254, 202, 87, 0.2);
-  border: 2px solid #feca57;
-}
-
-.icon-large {
-  background: rgba(72, 219, 251, 0.2);
-  border: 2px solid #48dbfb;
-}
-
-.icon-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.icon-small .icon-dot {
-  background: #ff6b6b;
-}
-
-.icon-medium .icon-dot {
-  background: #feca57;
-}
-
-.icon-large .icon-dot {
-  background: #48dbfb;
-}
-
-
-
-.industry-distribution {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(64, 224, 255, 0.1);
-  border-radius: 8px;
-}
-
-.distribution-title {
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
+.stock-list,
 .industry-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-sizing: border-box;
 }
 
-.industry-item {
+.stock-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.industry-info {
-  display: flex;
+  align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
 }
 
-.industry-name {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.industry-value {
-  color: #40e0ff;
-  font-weight: bold;
-}
-
-:deep(.el-progress-bar__outer) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.stock-details {
+.stock-main {
+  min-width: 0;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .stock-name {
+  font-size: 14px;
+  font-weight: 600;
   color: #ffffff;
-  font-size: 11px;
-  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.35;
+  word-break: break-all;
 }
 
-.stock-market-cap {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.6);
+.stock-meta,
+.metric-sub {
+  font-size: 12px;
+  line-height: 1.4;
 }
 
-.stock-category-badge {
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 8px;
-  font-weight: bold;
+.stock-metrics {
+  text-align: right;
+  font-weight: 700;
+  min-width: 86px;
   flex-shrink: 0;
 }
 
-.stock-category-badge.small {
-  background: rgba(255, 107, 107, 0.3);
-  color: #ff6b6b;
+.industry-section {
+  flex: 1;
 }
 
-.stock-category-badge.medium {
-  background: rgba(254, 202, 87, 0.3);
-  color: #feca57;
-}
-
-.stock-category-badge.large {
-  background: rgba(72, 219, 251, 0.3);
-  color: #48dbfb;
-}
-
-.market-cap-stats {
-  padding: 8px;
-  background: rgba(64, 224, 255, 0.05);
-  border: 1px solid rgba(64, 224, 255, 0.2);
-  border-radius: 6px;
-}
-
-.stats-title {
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: bold;
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.industry-row {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  padding: 0 16px 0 2px;
+  box-sizing: border-box;
 }
 
-.stat-item {
+.industry-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.stat-item.small {
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+.industry-name {
+  font-size: 13px;
+  color: #ffffff;
 }
 
-.stat-item.medium {
-  background: rgba(254, 202, 87, 0.1);
-  border: 1px solid rgba(254, 202, 87, 0.3);
-}
-
-.stat-item.large {
-  background: rgba(72, 219, 251, 0.1);
-  border: 1px solid rgba(72, 219, 251, 0.3);
-}
-
-.stat-item:hover {
-  transform: scale(1.02);
-}
-
-.stat-icon {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
+.industry-value {
+  font-size: 13px;
+  font-weight: 700;
   flex-shrink: 0;
+  padding-left: 8px;
+  text-align: right;
+  padding-right: 2px;
 }
 
-.stat-item.small .stat-icon {
-  background: #ff6b6b;
-  box-shadow: 0 0 4px rgba(255, 107, 107, 0.6);
+.industry-bar-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
 }
 
-.stat-item.medium .stat-icon {
-  background: #feca57;
-  box-shadow: 0 0 4px rgba(254, 202, 87, 0.6);
+.industry-bar {
+  height: 100%;
+  border-radius: 999px;
 }
 
-.stat-item.large .stat-icon {
-  background: #48dbfb;
-  box-shadow: 0 0 4px rgba(72, 219, 251, 0.6);
+.positive {
+  color: #ff8c8c;
 }
 
-.stat-content {
+.negative {
+  color: #6ee7a8;
+}
+
+.neutral {
+  color: #9ad9ff;
+}
+
+.industry-bar.positive {
+  background: linear-gradient(90deg, rgba(255, 140, 140, 0.35), #ff8c8c);
+}
+
+.industry-bar.negative {
+  background: linear-gradient(90deg, rgba(110, 231, 168, 0.35), #6ee7a8);
+}
+
+.industry-bar.neutral {
+  background: linear-gradient(90deg, rgba(154, 217, 255, 0.35), #9ad9ff);
+}
+
+.empty-state,
+.empty-inline {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-}
-
-.stat-number {
-  font-size: 14px;
-  font-weight: bold;
-  color: #ffffff;
-  text-shadow: 0 0 6px rgba(64, 224, 255, 0.5);
-}
-
-.stat-label {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.warning-actions {
-  display: flex;
-  gap: 8px;
   justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.empty-state {
+  flex: 1;
+  min-height: 220px;
+  border: 1px dashed rgba(64, 224, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(21, 31, 56, 0.4);
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #d7f2ff;
+}
+
+.empty-text {
+  font-size: 12px;
+}
+
+.attribution-meta-panel {
   padding-top: 8px;
+  padding-bottom: 8px;
 }
 
-.handle-icon,
-.refresh-icon {
-  width: 12px;
-  height: 12px;
-  margin-right: 4px;
-  display: inline-block;
-  background: currentColor;
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
+.attribution-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  font-size: 12px;
+  line-height: 1;
+  min-height: 24px;
+  align-items: center;
 }
 
-.handle-icon {
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z'/%3E%3C/svg%3E");
-}
-
-.refresh-icon {
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z'/%3E%3C/svg%3E");
-}
-
-/* 滚动条样式 */
-.market-cap-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.market-cap-list::-webkit-scrollbar-track {
-  background: rgba(64, 224, 255, 0.1);
-  border-radius: 2px;
-}
-
-.market-cap-list::-webkit-scrollbar-thumb {
-  background: rgba(64, 224, 255, 0.4);
-  border-radius: 2px;
-  transition: background 0.3s ease;
-}
-
-.market-cap-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(64, 224, 255, 0.6);
-}
-
-/* Element UI按钮样式覆盖 */
-:deep(.el-button) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.2), rgba(30, 144, 255, 0.2)) !important;
-  border: 1px solid rgba(64, 224, 255, 0.4) !important;
-  color: #ffffff !important;
-  border-radius: 6px !important;
-  box-shadow: 0 0 10px rgba(64, 224, 255, 0.2) !important;
-  transition: all 0.3s ease !important;
-  font-size: 11px !important;
-  padding: 4px 12px !important;
-  height: auto !important;
-}
-
-:deep(.el-button:hover) {
-  background: linear-gradient(135deg, rgba(64, 224, 255, 0.4), rgba(30, 144, 255, 0.4)) !important;
-  border-color: rgba(64, 224, 255, 0.8) !important;
-  box-shadow: 0 0 15px rgba(64, 224, 255, 0.4) !important;
-  transform: translateY(-1px);
+@media (max-width: 1200px) {
+  .summary-grid,
+  .top-contributors-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

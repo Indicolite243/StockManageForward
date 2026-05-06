@@ -47,11 +47,7 @@
                 >
                   确认
                 </el-button>
-                <span class="source-state">已生效：{{ appliedComparisonSourceLabel }}</span>
-                <span class="source-state pending" v-if="pendingComparisonDataSource !== comparisonDataSource">
-                  待切换：{{ pendingComparisonSourceLabel }}
-                </span>
-                <span class="source-meta" v-if="comparisonSourceMetaText">{{ comparisonSourceMetaText }}</span>
+                <span class="source-state">{{ comparisonStatusText }}</span>
                 <div class="status-indicator"></div>
               </div>
             </div>
@@ -278,6 +274,8 @@ export default {
         }
         if (this.activeMenu === 'asset' && this.$refs.riskWarning && typeof this.$refs.riskWarning.setData === 'function') {
           this.$refs.riskWarning.setData(rawData)
+        } else if (this.$refs.riskWarning && typeof this.$refs.riskWarning.setData === 'function') {
+          this.$refs.riskWarning.setData(null)
         }
       } catch (error) {
         console.error('刷新对比评估数据失败:', error)
@@ -323,15 +321,15 @@ export default {
     pendingComparisonSourceLabel() {
       return this.pendingComparisonDataSource === 'qmt' ? 'QMT实时' : 'MongoDB缓存'
     },
-    comparisonSourceMetaText() {
-      const effectiveSource = this.comparisonSourceMeta?.data_source || (this.comparisonDataSource === 'qmt' ? 'qmt_live' : 'mongodb_cache')
-      const isRealtime = effectiveSource === 'qmt_live'
-      const timeLabel = isRealtime ? '实时数据时间' : '缓存数据时间'
-      const timeText = this.comparisonSourceMeta.snapshot_time
-        ? `${timeLabel} ${String(this.comparisonSourceMeta.snapshot_time).replace('T', ' ')}`
-        : '等待加载数据'
-      const fallbackText = this.comparisonSourceMeta.fallback_reason ? ' · 当前为回退缓存' : ''
-      return timeText + fallbackText
+    comparisonStatusText() {
+      const activeText = `已生效:${this.appliedComparisonSourceLabel}`
+      const pendingText = this.pendingComparisonDataSource !== this.comparisonDataSource
+        ? ` | 待切换:${this.pendingComparisonSourceLabel}`
+        : ''
+      const timeText = this.comparisonSourceMeta?.snapshot_time
+        ? String(this.comparisonSourceMeta.snapshot_time).replace('T', ' ')
+        : '--'
+      return `${activeText}${pendingText} | ${timeText}`
     }
   }
 }
@@ -375,11 +373,10 @@ export default {
 .content-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .panel-title { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; white-space: nowrap; min-width: max-content; }
 .header-tools { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; overflow: visible; }
-.source-state { font-size: 12px; color: rgba(255, 255, 255, 0.9); white-space: nowrap; }
-.source-state.pending { color: rgba(255, 220, 120, 0.95); }
-.source-meta { flex: 0 0 auto; overflow: visible; text-overflow: clip; font-size: 12px; color: rgba(255, 255, 255, 0.82); white-space: nowrap; }
+.source-state { font-size: 12px; color: rgba(255, 255, 255, 0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88; }
 .panel-content { flex: 1; padding: 15px; overflow: hidden; position: relative; }
+.warning-panel .panel-content { overflow-y: auto; }
 .floating-decorations { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .decoration-orb { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(64, 224, 255, 0.2), transparent); animation: orbFloat 8s ease-in-out infinite; }
 .orb-1 { width: 80px; height: 80px; top: 10%; right: 20%; }
