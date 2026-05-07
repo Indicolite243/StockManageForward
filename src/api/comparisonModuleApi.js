@@ -43,3 +43,24 @@ export async function fetchAreaComparison(accountId = ACCOUNT_ID, source = 'qmt'
   })
   return response.data
 }
+
+export async function fetchAssetAttribution(
+  accountId = ACCOUNT_ID,
+  source = 'qmt',
+  options = {}
+) {
+  const params = {
+    account_id: accountId,
+    source
+  }
+
+  if (options.startDate) {
+    params.start_date = options.startDate
+  }
+  if (options.endDate) {
+    params.end_date = options.endDate
+  }
+
+  const response = await api.get('/api/asset_attribution/', { params })
+  return response.data
+}

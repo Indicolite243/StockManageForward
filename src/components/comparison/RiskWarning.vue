@@ -1,30 +1,106 @@
 ﻿<template>
   <div class="attribution-panel">
-    <template v-if="hasData">
+    <div class="controls-card">
+      <div class="controls-row">
+        <div class="control-label inline-label">数据源</div>
+        <div class="control-actions unified-actions">
+          <el-select v-model="pendingSource" size="small" class="control-select">
+            <el-option label="QMT实时" value="qmt" />
+            <el-option label="MongoDB缓存" value="mongodb" />
+          </el-select>
+          <el-button size="small" type="primary" @click="applySource">确认</el-button>
+          <el-date-picker
+            v-model="pendingDateRange"
+            type="daterange"
+            size="small"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            class="date-picker compact-date-picker"
+          />
+          <el-button size="small" @click="useCurrentEndDate">当前时间</el-button>
+          <el-button size="small" type="primary" @click="applyDateRange">确认</el-button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="loading" class="loading-card">
+      <div class="loading-title">业绩归因加载中</div>
+      <div class="loading-subtitle">正在根据当前账户、数据源和时间范围计算个股与行业贡献。</div>
+    </div>
+
+    <div v-else-if="errorMessage" class="error-card">
+      <div class="error-title">业绩归因加载失败</div>
+      <div class="error-subtitle">{{ errorMessage }}</div>
+    </div>
+
+    <template v-else-if="hasData">
       <div class="summary-grid">
         <div class="summary-card">
-          <div class="summary-label">组合市值</div>
+          <div class="summary-top">
+            <div class="summary-label">组合市值</div>
+            <el-tooltip placement="top" effect="dark" :show-after="120">
+              <template #content>
+                <div class="tooltip-content">
+                  <div>含义：统计当前区间结束时组合全部持仓的市值合计。</div>
+                  <div>计算：各持仓当前市值求和。</div>
+                </div>
+              </template>
+              <span class="hint-icon">!</span>
+            </el-tooltip>
+          </div>
           <div class="summary-value">{{ formatCurrency(summary.totalMarketValue) }}</div>
         </div>
+
         <div class="summary-card">
-          <div class="summary-label">浮动盈亏</div>
+          <div class="summary-top">
+            <div class="summary-label">浮动盈亏</div>
+            <el-tooltip placement="top" effect="dark" :show-after="120">
+              <template #content>
+                <div class="tooltip-content">
+                  <div>含义：当前区间内，按结束持仓估算的总盈亏金额。</div>
+                  <div>计算：Σ((结束价格 - 起始价格) × 持仓数量)。</div>
+                </div>
+              </template>
+              <span class="hint-icon">!</span>
+            </el-tooltip>
+          </div>
           <div class="summary-value" :class="valueClass(summary.totalPnlAmount)">
             {{ formatSignedCurrency(summary.totalPnlAmount) }}
           </div>
         </div>
+
         <div class="summary-card">
-          <div class="summary-label">正贡献个股</div>
+          <div class="summary-top">
+            <div class="summary-label">正贡献个股</div>
+          </div>
           <div class="summary-value">{{ summary.positiveCount }}</div>
         </div>
+
         <div class="summary-card">
-          <div class="summary-label">主导行业</div>
+          <div class="summary-top">
+            <div class="summary-label">主导行业</div>
+          </div>
           <div class="summary-value small">{{ summary.leadingIndustry }}</div>
         </div>
       </div>
 
       <div class="top-contributors-grid">
         <div class="card-section">
-          <div class="section-title">正贡献 Top 5</div>
+          <div class="section-head">
+            <div class="section-title">正贡献 Top 5</div>
+            <el-tooltip placement="top" effect="dark" :show-after="120">
+              <template #content>
+                <div class="tooltip-content">
+                  <div>左侧权重：该股票在区间结束时占组合总市值的比例。</div>
+                  <div>右上百分比：该股票对组合总收益的贡献比例。</div>
+                  <div>右下百分比：该股票在所选区间内的价格涨跌幅。</div>
+                </div>
+              </template>
+              <span class="hint-icon">!</span>
+            </el-tooltip>
+          </div>
           <div v-if="topPositive.length" class="stock-list">
             <div v-for="item in topPositive" :key="`pos-${item.stockCode}`" class="stock-row">
               <div class="stock-main">
@@ -41,7 +117,19 @@
         </div>
 
         <div class="card-section">
-          <div class="section-title">负贡献 Top 5</div>
+          <div class="section-head">
+            <div class="section-title">负贡献 Top 5</div>
+            <el-tooltip placement="top" effect="dark" :show-after="120">
+              <template #content>
+                <div class="tooltip-content">
+                  <div>左侧权重：该股票在区间结束时占组合总市值的比例。</div>
+                  <div>右上百分比：该股票对组合总收益的拖累比例。</div>
+                  <div>右下百分比：该股票在所选区间内的价格涨跌幅。</div>
+                </div>
+              </template>
+              <span class="hint-icon">!</span>
+            </el-tooltip>
+          </div>
           <div v-if="topNegative.length" class="stock-list">
             <div v-for="item in topNegative" :key="`neg-${item.stockCode}`" class="stock-row">
               <div class="stock-main">
@@ -58,15 +146,15 @@
         </div>
       </div>
 
-      <div class="card-section attribution-meta-panel">
-        <div class="attribution-meta">
-          <span>样本个股 {{ attributionRows.length }} 只</span>
-          <span>数据来源 {{ sourceLabel }}</span>
-          <span v-if="snapshotTime">数据时间 {{ snapshotTime }}</span>
-        </div>
+      <div class="meta-bar">
+        <span>样本个股 {{ attributionRows.length }} 只</span>
+        <span>数据来源 {{ sourceLabel }}</span>
+        <span v-if="snapshotTime">数据时间 {{ snapshotTime }}</span>
+        <span v-if="meta.sampleCount">样本数 {{ meta.sampleCount }}</span>
+        <span v-if="meta.rangeStart && meta.rangeEnd">区间 {{ meta.rangeStart }} 至 {{ meta.rangeEnd }}</span>
       </div>
 
-      <div class="card-section industry-section">
+      <div class="industry-card">
         <div class="industry-title-bar">行业贡献</div>
         <div v-if="industryRows.length" class="industry-list">
           <div v-for="industry in industryRows" :key="industry.name" class="industry-row">
@@ -97,16 +185,29 @@
 </template>
 
 <script>
+import { fetchAssetAttribution } from '@/api/comparisonModuleApi.js'
+
 export default {
   name: 'RiskWarning',
   props: {
-    warnings: {
-      type: Array,
-      default: () => []
+    accountId: {
+      type: String,
+      default: '62283925'
+    },
+    enabled: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
+    const range = this.buildDefaultDateRange()
     return {
+      loading: false,
+      errorMessage: '',
+      source: 'qmt',
+      pendingSource: 'qmt',
+      dateRange: range,
+      pendingDateRange: [...range],
       attributionRows: [],
       industryRows: [],
       summary: {
@@ -116,8 +217,14 @@ export default {
         negativeCount: 0,
         leadingIndustry: '--'
       },
+      meta: {
+        sampleCount: 0,
+        rangeStart: '',
+        rangeEnd: ''
+      },
       sourceLabel: '--',
-      snapshotTime: ''
+      snapshotTime: '',
+      requestId: 0
     }
   },
   computed: {
@@ -125,122 +232,84 @@ export default {
       return this.attributionRows.length > 0
     },
     topPositive() {
-      return this.attributionRows
-        .filter((item) => item.contributionPct > 0)
-        .sort((a, b) => b.contributionPct - a.contributionPct)
-        .slice(0, 5)
+      return this.attributionRows.filter((item) => item.contributionPct > 0).slice(0, 5)
     },
     topNegative() {
-      return this.attributionRows
-        .filter((item) => item.contributionPct < 0)
-        .sort((a, b) => a.contributionPct - b.contributionPct)
-        .slice(0, 5)
+      return this.attributionRows.filter((item) => item.contributionPct < 0).slice(0, 5)
     },
     maxIndustryContributionAbs() {
       const values = this.industryRows.map((item) => Math.abs(item.contributionPct))
       return values.length ? Math.max(...values, 0.01) : 0.01
     }
   },
-  methods: {
-    setData(rawData) {
-      if (!rawData) {
-        this.resetState()
-        return
-      }
-
-      const positions = Array.isArray(rawData.asset_data)
-        ? rawData.asset_data
-        : Array.isArray(rawData.positions)
-          ? rawData.positions
-          : []
-
-      if (!positions.length) {
-        this.resetState(rawData)
-        return
-      }
-
-      const totalMarketValue =
-        Number(rawData.total_market_value || 0) ||
-        positions.reduce((sum, item) => sum + Number(item.market_value || 0), 0)
-
-      const rows = positions
-        .map((item) => {
-          const stockCode = item.stock_code || ''
-          const stockName = item.stock_name || stockCode || '--'
-          const industry = item.industry || item.industry_name || '未分类'
-          const currentPrice = Number(item.current_price || item.open_price || item.lastPrice || 0)
-          const costPrice = Number(item.cost_price || item.avg_price || item.open_price || 0)
-          const volume = Number(item.volume || 0)
-          const marketValue = Number(item.market_value || 0)
-          const returnRate = Number(
-            item.profit_loss_rate ??
-              item.daily_return ??
-              (costPrice > 0 && currentPrice > 0 ? ((currentPrice - costPrice) / costPrice) * 100 : 0)
-          )
-          const pnlAmount =
-            volume > 0 && costPrice > 0 ? (currentPrice - costPrice) * volume : marketValue * (returnRate / 100)
-          const weightPct = Number(
-            item.asset_ratio ??
-              item.percentage ??
-              (totalMarketValue > 0 ? (marketValue / totalMarketValue) * 100 : 0)
-          )
-          const contributionPct = totalMarketValue > 0 ? (pnlAmount / totalMarketValue) * 100 : 0
-
-          return {
-            stockCode,
-            stockName,
-            industry,
-            currentPrice,
-            costPrice,
-            volume,
-            marketValue,
-            returnRate,
-            pnlAmount,
-            weightPct,
-            contributionPct
-          }
-        })
-        .sort((a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct))
-
-      const industryMap = new Map()
-      rows.forEach((row) => {
-        if (!industryMap.has(row.industry)) {
-          industryMap.set(row.industry, {
-            name: row.industry,
-            contributionPct: 0,
-            pnlAmount: 0,
-            marketValue: 0,
-            count: 0
-          })
+  watch: {
+    enabled: {
+      immediate: true,
+      handler(value) {
+        if (value) {
+          this.loadAttribution()
         }
-        const bucket = industryMap.get(row.industry)
-        bucket.contributionPct += row.contributionPct
-        bucket.pnlAmount += row.pnlAmount
-        bucket.marketValue += row.marketValue
-        bucket.count += 1
-      })
-
-      const industryRows = Array.from(industryMap.values()).sort(
-        (a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct)
-      )
-      const positiveCount = rows.filter((item) => item.contributionPct > 0).length
-      const negativeCount = rows.filter((item) => item.contributionPct < 0).length
-      const totalPnlAmount = rows.reduce((sum, item) => sum + item.pnlAmount, 0)
-      const leadingIndustry = industryRows.length ? industryRows[0].name : '--'
-
-      this.attributionRows = rows
-      this.industryRows = industryRows
-      this.summary = {
-        totalMarketValue,
-        totalPnlAmount,
-        positiveCount,
-        negativeCount,
-        leadingIndustry
       }
-      this.sourceLabel = this.resolveSourceLabel(rawData.data_source)
-      this.snapshotTime = rawData.snapshot_time ? String(rawData.snapshot_time).replace('T', ' ') : ''
     },
-    resetState(rawData = null) {
+    accountId(newValue, oldValue) {
+      if (!this.enabled || !newValue || newValue === oldValue) return
+      this.loadAttribution()
+    }
+  },
+  methods: {
+    buildDefaultDateRange() {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(end.getDate() - 30)
+      return [this.formatDate(start), this.formatDate(end)]
+    },
+    formatDate(value) {
+      const year = value.getFullYear()
+      const month = String(value.getMonth() + 1).padStart(2, '0')
+      const day = String(value.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    },
+    async loadAttribution() {
+      if (!this.enabled || !this.accountId) return
+      const currentRequestId = ++this.requestId
+      this.loading = true
+      this.errorMessage = ''
+      try {
+        const data = await fetchAssetAttribution(this.accountId, this.source, {
+          startDate: this.dateRange[0],
+          endDate: this.dateRange[1]
+        })
+        if (currentRequestId !== this.requestId) return
+        this.applyPayload(data)
+      } catch (error) {
+        if (currentRequestId !== this.requestId) return
+        this.errorMessage = error?.response?.data?.error || error?.message || '加载失败'
+        this.resetState()
+      } finally {
+        if (currentRequestId === this.requestId) {
+          this.loading = false
+        }
+      }
+    },
+    applyPayload(data) {
+      this.attributionRows = Array.isArray(data.attributionRows) ? data.attributionRows : []
+      this.industryRows = Array.isArray(data.industryRows) ? data.industryRows : []
+      this.summary = data.summary || {
+        totalMarketValue: 0,
+        totalPnlAmount: 0,
+        positiveCount: 0,
+        negativeCount: 0,
+        leadingIndustry: '--'
+      }
+      this.meta = {
+        sampleCount: Number(data.sample_count || 0),
+        rangeStart: data.range_start || '',
+        rangeEnd: data.range_end || ''
+      }
+      this.sourceLabel = this.resolveSourceLabel(data.data_source)
+      this.snapshotTime = data.snapshot_time ? String(data.snapshot_time).replace('T', ' ') : ''
+    },
+    resetState() {
       this.attributionRows = []
       this.industryRows = []
       this.summary = {
@@ -250,8 +319,30 @@ export default {
         negativeCount: 0,
         leadingIndustry: '--'
       }
-      this.sourceLabel = rawData ? this.resolveSourceLabel(rawData.data_source) : '--'
-      this.snapshotTime = rawData?.snapshot_time ? String(rawData.snapshot_time).replace('T', ' ') : ''
+      this.meta = {
+        sampleCount: 0,
+        rangeStart: '',
+        rangeEnd: ''
+      }
+      this.sourceLabel = '--'
+      this.snapshotTime = ''
+    },
+    applySource() {
+      if (this.pendingSource === this.source) return
+      this.source = this.pendingSource
+      this.loadAttribution()
+    },
+    applyDateRange() {
+      if (!Array.isArray(this.pendingDateRange) || this.pendingDateRange.length !== 2) return
+      this.dateRange = [...this.pendingDateRange]
+      this.loadAttribution()
+    },
+    useCurrentEndDate() {
+      const endText = this.formatDate(new Date())
+      if (!Array.isArray(this.pendingDateRange) || this.pendingDateRange.length !== 2) {
+        this.pendingDateRange = this.buildDefaultDateRange()
+      }
+      this.pendingDateRange = [this.pendingDateRange[0], endText]
     },
     resolveSourceLabel(source) {
       if (source === 'qmt_live') return 'QMT实时'
@@ -265,8 +356,9 @@ export default {
       return 'neutral'
     },
     industryBarStyle(value) {
-      const width = `${Math.max(6, (Math.abs(value) / this.maxIndustryContributionAbs) * 100)}%`
-      return { width }
+      return {
+        width: `${Math.max(6, (Math.abs(value) / this.maxIndustryContributionAbs) * 100)}%`
+      }
     },
     formatCurrency(value) {
       return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
@@ -301,34 +393,97 @@ export default {
   box-sizing: border-box;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
+.controls-card,
 .summary-card,
-.card-section {
+.card-section,
+.meta-bar,
+.industry-card,
+.loading-card,
+.error-card {
   background: rgba(21, 31, 56, 0.72);
   border: 1px solid rgba(64, 224, 255, 0.14);
   border-radius: 12px;
   box-shadow: inset 0 0 18px rgba(64, 224, 255, 0.05);
 }
 
+.controls-card,
+.loading-card,
+.error-card,
+.meta-bar,
+.industry-card,
+.card-section,
 .summary-card {
-  padding: 12px 14px;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+
+.control-label.inline-label {
+  min-width: 56px;
+}
+
+.control-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.unified-actions {
+  flex: 1 1 auto;
+}
+
+.control-select {
+  width: 140px;
+}
+
+.date-picker {
+  width: 260px;
+}
+
+.compact-date-picker {
+  width: 430px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-top,
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .summary-label,
 .section-title,
 .stock-meta,
-.attribution-meta {
+.meta-bar {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.summary-label {
-  font-size: 12px;
-  margin-bottom: 8px;
+.summary-label,
+.section-title {
+  font-size: 13px;
 }
 
 .summary-value {
@@ -344,6 +499,29 @@ export default {
   font-size: 18px;
 }
 
+.hint-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(64, 224, 255, 0.4);
+  color: #7bdcff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 260px;
+  line-height: 1.5;
+}
+
 .top-contributors-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -351,27 +529,11 @@ export default {
   align-items: start;
 }
 
-.card-section {
-  padding: 14px;
-  min-height: 0;
-}
-
-.section-title {
-  font-size: 13px;
-  margin-bottom: 12px;
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  line-height: 28px;
-  padding: 0 2px;
-}
-
 .stock-list,
 .industry-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-sizing: border-box;
 }
 
 .stock-row {
@@ -411,32 +573,38 @@ export default {
   flex-shrink: 0;
 }
 
-.industry-section {
-  flex: 0 0 auto;
-  padding-top: 10px;
+.meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  min-height: 48px;
+  font-size: 12px;
+}
+
+.meta-bar span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .industry-title-bar {
-  height: 40px;
-  min-height: 40px;
-  margin: 0 0 14px;
-  padding: 0 14px;
-  border-radius: 999px;
   display: flex;
   align-items: center;
-  font-size: 13px;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.72);
+  min-height: 40px;
+  padding: 0 14px;
+  margin-bottom: 14px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.03);
-  box-sizing: border-box;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
 }
 
 .industry-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 16px 0 2px;
-  box-sizing: border-box;
+  padding: 0 12px 0 2px;
 }
 
 .industry-header {
@@ -444,8 +612,6 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .industry-name {
@@ -457,14 +623,11 @@ export default {
   font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
-  padding-left: 8px;
-  text-align: right;
-  padding-right: 2px;
 }
 
 .industry-bar-track {
   width: 100%;
-  height: 8px;
+  height: 10px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
@@ -473,6 +636,35 @@ export default {
 .industry-bar {
   height: 100%;
   border-radius: 999px;
+}
+
+.loading-card,
+.error-card,
+.empty-state,
+.empty-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.loading-title,
+.error-title,
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.loading-subtitle,
+.error-subtitle,
+.empty-text {
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  max-width: 420px;
 }
 
 .positive {
@@ -499,66 +691,28 @@ export default {
   background: linear-gradient(90deg, rgba(154, 217, 255, 0.35), #9ad9ff);
 }
 
-.empty-state,
-.empty-inline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.empty-state {
-  flex: 1;
-  min-height: 220px;
-  border: 1px dashed rgba(64, 224, 255, 0.2);
-  border-radius: 12px;
-  background: rgba(21, 31, 56, 0.4);
-}
-
-.empty-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #d7f2ff;
-}
-
-.empty-text {
-  font-size: 12px;
-}
-
-.attribution-meta-panel {
-  padding-top: 0;
-  padding-bottom: 0;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-}
-
-.attribution-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  font-size: 12px;
-  line-height: 1;
-  min-height: 24px;
-  align-items: center;
-  width: 100%;
-  padding: 10px 0;
-  box-sizing: border-box;
-}
-
-.attribution-meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  line-height: 20px;
-}
-
 @media (max-width: 1200px) {
   .summary-grid,
   .top-contributors-grid {
     grid-template-columns: 1fr;
+  }
+
+  .date-picker {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .controls-row {
+    align-items: stretch;
+  }
+
+  .control-block.inline-block {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-actions {
+    align-items: stretch;
   }
 }
 </style>

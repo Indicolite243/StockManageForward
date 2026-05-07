@@ -116,7 +116,11 @@
               <div class="status-indicator"></div>
             </div>
             <div class="panel-content">
-              <RiskWarning ref="riskWarning" :warnings="riskWarnings" />
+              <RiskWarning
+                ref="riskWarning"
+                :account-id="currentAccountId"
+                :enabled="activeMenu === 'asset'"
+              />
             </div>
           </div>
         </div>
@@ -152,6 +156,7 @@ export default {
         snapshot_time: '',
         fallback_reason: ''
       },
+      currentAccountId: '62283925',
       comparisonRequestId: 0,
       riskThresholdData: [],
       riskThresholdMeta: {},
@@ -216,10 +221,7 @@ export default {
     },
     async confirmRiskDateRange() {
       this.riskDateRange = Array.isArray(this.pendingRiskDateRange) ? [...this.pendingRiskDateRange] : []
-      let currentAccountId = '62283925'
-      if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
-        currentAccountId = this.$refs.comparisonTable.selectedAccount
-      }
+      let currentAccountId = this.currentAccountId || '62283925'
       await this.loadRiskThresholdData(currentAccountId)
     },
     stopRefreshTimer() {
@@ -241,10 +243,7 @@ export default {
     async refreshAllData() {
       const currentRequestId = ++this.comparisonRequestId
       const requestedSource = this.comparisonDataSource
-      let currentAccountId = '62283925'
-      if (this.$refs.comparisonTable && this.$refs.comparisonTable.selectedAccount) {
-        currentAccountId = this.$refs.comparisonTable.selectedAccount
-      }
+      let currentAccountId = this.currentAccountId || '62283925'
 
       try {
         let rawData = null
@@ -271,11 +270,6 @@ export default {
         }
         if (this.$refs.comparisonTable && typeof this.$refs.comparisonTable.setData === 'function') {
           this.$refs.comparisonTable.setData(rawData)
-        }
-        if (this.activeMenu === 'asset' && this.$refs.riskWarning && typeof this.$refs.riskWarning.setData === 'function') {
-          this.$refs.riskWarning.setData(rawData)
-        } else if (this.$refs.riskWarning && typeof this.$refs.riskWarning.setData === 'function') {
-          this.$refs.riskWarning.setData(null)
         }
       } catch (error) {
         console.error('刷新对比评估数据失败:', error)
@@ -307,8 +301,9 @@ export default {
     getChartType() { return this.activeMenu },
     getTableType() { return this.activeMenu },
     handleAccountChange(accountId) {
+      this.currentAccountId = accountId || '62283925'
       this.refreshAllData()
-      this.loadRiskThresholdData(accountId)
+      this.loadRiskThresholdData(this.currentAccountId)
     }
   },
   computed: {
